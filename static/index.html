@@ -244,6 +244,28 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-glow);
   }
+  .base-image-row {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .base-image-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    outline: none;
+  }
+  .base-image-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
   .prompt-suggestions {
     display: flex;
     flex-wrap: wrap;
@@ -423,7 +445,7 @@
 
   <!-- Header -->
   <header>
-    <div class="logo-badge"><span class="dot"></span>Powered by GPT-Image-1</div>
+    <div class="logo-badge"><span class="dot"></span>Powered by ME</div>
     <h1>AI Room Visualizer</h1>
     <p class="subtitle">Upload a room photo, describe your change,<br>and watch the space transform in seconds.</p>
   </header>
@@ -480,6 +502,13 @@
       id="promptInput"
       placeholder="e.g. Remove the sofa from the room, or Replace the wooden chair with a modern white armchair"
     ></textarea>
+    <div class="base-image-row">
+      <span>Apply this prompt to:</span>
+      <select id="baseImageSelect" class="base-image-select">
+        <option value="original">Original uploaded room image</option>
+        <option value="latest">Latest generated result (follow-up)</option>
+      </select>
+    </div>
     <div class="prompt-suggestions">
       <span class="suggestion-chip" data-prompt="Remove the sofa from the room">Remove sofa</span>
       <span class="suggestion-chip" data-prompt="Replace the rug with a modern geometric pattern rug">Replace rug</span>
@@ -551,6 +580,7 @@
 let roomFile   = null;
 let objFile    = null;
 let roomDataURL = null;
+let latestGeneratedDataURL = null;
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 const $  = id  => document.getElementById(id);
@@ -567,6 +597,16 @@ function setLoading(on) {
   $('loadingState').classList.toggle('visible', on);
   $('generateBtn').disabled = on;
   $('generateBtn').textContent = on ? '⏳ Generating…' : '✦ Generate AI Edit';
+}
+
+function dataUrlToBlob(dataUrl) {
+  const parts = dataUrl.split(",");
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const bin = atob(parts[1]);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
 }
 
 /* ─── Upload zones ───────────────────────────────────────────────────────── */
@@ -610,6 +650,8 @@ function initDropZone(zoneId, inputId, previewWrapId, previewImgId, removeId, on
 initDropZone('roomZone','roomInput','roomPreview','roomPreviewImg','roomRemove', (f, url) => {
   roomFile    = f;
   roomDataURL = url;
+  latestGeneratedDataURL = null;
+  $('baseImageSelect').value = 'original';
 });
 initDropZone('objZone','objInput','objPreview','objPreviewImg','objRemove', (f) => {
   objFile = f;
@@ -630,9 +672,18 @@ $('generateBtn').addEventListener('click', async () => {
 
   if (!roomFile)                         return showError('Please upload a room photo first.');
   if (!$('promptInput').value.trim())    return showError('Please describe the edit you want.');
+  const baseImage = $('baseImageSelect').value;
+  if (baseImage === 'latest' && !latestGeneratedDataURL) {
+    return showError('No generated image yet. Run one edit first, then use follow-up mode.');
+  }
 
   const formData = new FormData();
-  formData.append('room_image', roomFile);
+  if (baseImage === 'latest') {
+    const followupBlob = dataUrlToBlob(latestGeneratedDataURL);
+    formData.append('room_image', new File([followupBlob], 'followup-base.png', { type: followupBlob.type }));
+  } else {
+    formData.append('room_image', roomFile);
+  }
   formData.append('prompt',     $('promptInput').value.trim());
   if (objFile) formData.append('object_image', objFile);
 
@@ -648,9 +699,10 @@ $('generateBtn').addEventListener('click', async () => {
 
     const b64   = json.image_b64;
     const src   = `data:image/${json.format};base64,${b64}`;
-    $('beforeImg').src = roomDataURL;
+    $('beforeImg').src = (baseImage === 'latest' && latestGeneratedDataURL) ? latestGeneratedDataURL : roomDataURL;
     $('afterImg').src  = src;
     $('downloadBtn').href = src;
+    latestGeneratedDataURL = src;
     $('resultSection').classList.add('visible');
     $('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 

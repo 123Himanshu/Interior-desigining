@@ -64,6 +64,28 @@ def prepare_image(file_bytes: bytes) -> bytes:
     return data
 
 
+def build_edit_prompt(user_prompt: str, has_object_reference: bool) -> str:
+    """Build a structured prompt for reliable interior edits."""
+    reference_instruction = (
+        "Use the second uploaded image as the replacement object reference. "
+        "Match its shape, material, and style closely while fitting realistic room perspective and lighting."
+        if has_object_reference
+        else "Do not introduce unrelated new furniture or decor unless explicitly requested."
+    )
+
+    return (
+        "You are an expert interior photo editor. Edit the room photo according to the user's request.\n\n"
+        "Requirements:\n"
+        "- Preserve room geometry, camera angle, and perspective.\n"
+        "- Keep lighting, shadows, reflections, and color grading photorealistic and consistent.\n"
+        "- Keep untouched areas unchanged.\n"
+        "- Maintain high-detail textures and clean edges.\n"
+        f"- {reference_instruction}\n"
+        "- Output a single realistic edited image with no text, watermark, or borders.\n\n"
+        f"User request: {user_prompt.strip()}"
+    )
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -93,7 +115,7 @@ async def edit_room(
     room_path.write_bytes(room_png)
 
     # ── Build prompt ──────────────────────────────────────────────────────────
-    final_prompt = prompt.strip()
+    final_prompt = build_edit_prompt(prompt, bool(object_image and object_image.filename))
 
     # ── Optional object image ─────────────────────────────────────────────────
     object_png_bytes = None
@@ -102,8 +124,6 @@ async def edit_room(
         object_png_bytes = prepare_image(obj_bytes)
         obj_path         = UPLOADS_DIR / f"{room_id}_object.png"
         obj_path.write_bytes(object_png_bytes)
-        final_prompt += ". Use the second uploaded image as a visual reference for the replacement object."
-
     # ── Call OpenAI images.edit ───────────────────────────────────────────────
     try:
         room_file_tuple = (room_path.name, room_png, "image/png")
@@ -112,7 +132,7 @@ async def edit_room(
             # Pass both images as a list
             obj_path_name = UPLOADS_DIR / f"{room_id}_object.png"
             response = client.images.edit(
-                model="gpt-image-1",
+                model="gpt-image-1.5",
                 image=[
                     (room_path.name,         room_png,         "image/png"),
                     (obj_path_name.name,     object_png_bytes, "image/png"),
@@ -123,7 +143,7 @@ async def edit_room(
             )
         else:
             response = client.images.edit(
-                model="gpt-image-1",
+                model="gpt-image-1.5",
                 image=room_file_tuple,
                 prompt=final_prompt,
                 n=1,
