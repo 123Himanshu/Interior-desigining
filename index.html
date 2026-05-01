@@ -407,6 +407,26 @@
     display: flex;
     justify-content: flex-end;
   }
+  .candidate-row {
+    padding: 10px 16px 0;
+    display: flex;
+    gap: 8px;
+  }
+  .candidate-btn {
+    background: rgba(124,58,237,.1);
+    border: 1px solid rgba(124,58,237,.2);
+    border-radius: 7px;
+    padding: 6px 10px;
+    color: var(--accent-light);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .candidate-btn.active {
+    background: rgba(124,58,237,.25);
+    border-color: var(--accent);
+    color: #fff;
+  }
   .btn-download {
     background: rgba(124,58,237,.15);
     border: 1px solid rgba(124,58,237,.3);
@@ -445,7 +465,7 @@
 
   <!-- Header -->
   <header>
-    <div class="logo-badge"><span class="dot"></span>Powered by Me</div>
+    <div class="logo-badge"><span class="dot"></span>Powered by ME</div>
     <h1>AI Room Visualizer</h1>
     <p class="subtitle">Upload a room photo, describe your change,<br>and watch the space transform in seconds.</p>
   </header>
@@ -559,7 +579,11 @@
         <div class="result-pane">
           <div class="result-pane-header">
             <span class="pill pill-after">After</span>
-            AI Generated
+            AI Generated (2 options)
+          </div>
+          <div class="candidate-row">
+            <button class="candidate-btn active" id="candidate1Btn" type="button">Option 1</button>
+            <button class="candidate-btn" id="candidate2Btn" type="button">Option 2</button>
           </div>
           <img id="afterImg" src="" alt="After" />
           <div class="download-bar">
@@ -581,6 +605,8 @@ let roomFile   = null;
 let objFile    = null;
 let roomDataURL = null;
 let latestGeneratedDataURL = null;
+let currentCandidates = [];
+let selectedCandidateIndex = 0;
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 const $  = id  => document.getElementById(id);
@@ -597,6 +623,16 @@ function setLoading(on) {
   $('loadingState').classList.toggle('visible', on);
   $('generateBtn').disabled = on;
   $('generateBtn').textContent = on ? '⏳ Generating…' : '✦ Generate AI Edit';
+}
+
+function setCandidate(index) {
+  if (!currentCandidates[index]) return;
+  selectedCandidateIndex = index;
+  latestGeneratedDataURL = currentCandidates[index];
+  $('afterImg').src = currentCandidates[index];
+  $('downloadBtn').href = currentCandidates[index];
+  $('candidate1Btn').classList.toggle('active', index === 0);
+  $('candidate2Btn').classList.toggle('active', index === 1);
 }
 
 function dataUrlToBlob(dataUrl) {
@@ -657,6 +693,9 @@ initDropZone('objZone','objInput','objPreview','objPreviewImg','objRemove', (f) 
   objFile = f;
 });
 
+$('candidate1Btn').addEventListener('click', () => setCandidate(0));
+$('candidate2Btn').addEventListener('click', () => setCandidate(1));
+
 /* ─── Suggestion chips ───────────────────────────────────────────────────── */
 document.querySelectorAll('.suggestion-chip').forEach(chip => {
   chip.addEventListener('click', () => {
@@ -697,12 +736,16 @@ $('generateBtn').addEventListener('click', async () => {
       throw new Error(json.detail || `Server error ${res.status}`);
     }
 
-    const b64   = json.image_b64;
-    const src   = `data:image/${json.format};base64,${b64}`;
+    const b64List = (json.images_b64 && json.images_b64.length) ? json.images_b64 : [json.image_b64];
+    const candidates = b64List
+      .filter(Boolean)
+      .map(b64 => `data:image/${json.format};base64,${b64}`);
+    if (!candidates.length) throw new Error('No image returned from server.');
+
     $('beforeImg').src = (baseImage === 'latest' && latestGeneratedDataURL) ? latestGeneratedDataURL : roomDataURL;
-    $('afterImg').src  = src;
-    $('downloadBtn').href = src;
-    latestGeneratedDataURL = src;
+    currentCandidates = candidates;
+    setCandidate(0);
+    $('candidate2Btn').style.display = candidates[1] ? 'inline-block' : 'none';
     $('resultSection').classList.add('visible');
     $('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 

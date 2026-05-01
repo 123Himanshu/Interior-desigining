@@ -75,6 +75,11 @@ def build_edit_prompt(user_prompt: str, has_object_reference: bool) -> str:
 
     return (
         "You are an expert interior photo editor. Edit the room photo according to the user's request.\n\n"
+        "Preserve constraints (always):\n"
+        "- Keep layout fixed.\n"
+        "- No extra objects unless explicitly requested.\n"
+        "- Keep photoreal shadows consistent with scene lighting.\n"
+        "- Preserve original camera/lens perspective and composition.\n\n"
         "Requirements:\n"
         "- Preserve room geometry, camera angle, and perspective.\n"
         "- Keep lighting, shadows, reflections, and color grading photorealistic and consistent.\n"
@@ -138,7 +143,7 @@ async def edit_room(
                     (obj_path_name.name,     object_png_bytes, "image/png"),
                 ],
                 prompt=final_prompt,
-                n=1,
+                n=2,
                 size="1024x1024",
             )
         else:
@@ -146,7 +151,7 @@ async def edit_room(
                 model="gpt-image-1.5",
                 image=room_file_tuple,
                 prompt=final_prompt,
-                n=1,
+                n=2,
                 size="1024x1024",
             )
 
@@ -160,23 +165,30 @@ async def edit_room(
         raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
     # ── Decode result ─────────────────────────────────────────────────────────
-    image_data = response.data[0]
+    results_b64 = []
+    for idx, image_data in enumerate(response.data):
+        if hasattr(image_data, "b64_json") and image_data.b64_json:
+            result_b64 = image_data.b64_json
+            result_bytes = base64.b64decode(result_b64)
+        elif hasattr(image_data, "url") and image_data.url:
+            import requests as req
+            result_bytes = req.get(image_data.url, timeout=30).content
+            result_b64 = base64.b64encode(result_bytes).decode()
+        else:
+            continue
 
-    if hasattr(image_data, "b64_json") and image_data.b64_json:
-        result_b64   = image_data.b64_json
-        result_bytes = base64.b64decode(result_b64)
-    elif hasattr(image_data, "url") and image_data.url:
-        import requests as req
-        result_bytes = req.get(image_data.url, timeout=30).content
-        result_b64   = base64.b64encode(result_bytes).decode()
-    else:
+        out_path = OUTPUTS_DIR / f"{room_id}_result_{idx+1}.png"
+        out_path.write_bytes(result_bytes)
+        results_b64.append(result_b64)
+
+    if not results_b64:
         raise HTTPException(status_code=500, detail="No image data returned from OpenAI.")
 
-    # Save output
-    out_path = OUTPUTS_DIR / f"{room_id}_result.png"
-    out_path.write_bytes(result_bytes)
-
-    return JSONResponse({"image_b64": result_b64, "format": "png"})
+    return JSONResponse({
+        "image_b64": results_b64[0],
+        "images_b64": results_b64,
+        "format": "png"
+    })
 
 
 # Serve static files (frontend)
