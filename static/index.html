@@ -108,7 +108,7 @@
     display: flex;
     align-items: baseline;
     gap: var(--spacing-xs);
-    margin-bottom: var(--spacing-md);
+    margin-bottom: var(--spacing-xs);
   }
 
   .step-num {
@@ -123,6 +123,13 @@
     font-weight: 500;
     letter-spacing: 0.195px;
     color: var(--ink);
+  }
+  
+  .step-desc {
+    color: var(--body); 
+    margin-bottom: var(--spacing-md); 
+    font-size: 14px;
+    line-height: 1.5;
   }
 
   /* ── Drop Zones & Uploads ────────────────────────────────── */
@@ -239,33 +246,6 @@
     color: var(--ink);
   }
 
-  .optional-block-toggle {
-    margin-top: var(--spacing-md);
-    display: inline-flex;
-    align-items: center;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 1.1px;
-    text-transform: uppercase;
-    color: var(--body);
-    transition: color 0.2s;
-  }
-  .optional-block-toggle:hover { color: var(--ink); }
-  .optional-block-toggle::before {
-    content: '+';
-    margin-right: 8px;
-    color: var(--primary);
-    font-size: 16px;
-  }
-  .optional-block-toggle.open::before { content: '−'; }
-  
-  .optional-block {
-    margin-top: var(--spacing-sm);
-    display: none;
-  }
-  .optional-block.visible { display: block; }
-
   /* ── Buttons ─────────────────────────────────────────────── */
   .btn-generate {
     width: 100%;
@@ -371,7 +351,7 @@
   
   <header>
     <h1>Cinematic Room Editor</h1>
-    <p class="subtitle">Direct your photorealistic scene. Upload environment architecture, apply narrative direction, and render the iteration in seconds.</p>
+    <p class="subtitle">Direct your photorealistic scene. Upload environment architecture, insert an object asset, and apply narrative direction.</p>
   </header>
 
   <div class="error-box" id="errorBox"><span id="errorMsg"></span></div>
@@ -382,10 +362,11 @@
       <span class="step-num">01 /</span>
       <h2 class="step-title">SCENE DEFINITION</h2>
     </div>
+    <p class="step-desc">First, establish the base environment. Upload a high-quality photograph of the room.</p>
     
     <div class="drop-zone" id="roomZone">
       <input type="file" id="roomInput" accept="image/*" />
-      <div class="drop-text"><strong>UPLOAD BASE ENVIRONMENT</strong> Drop blueprint or photography here (JPG/PNG)</div>
+      <div class="drop-text"><strong>UPLOAD BASE ENVIRONMENT</strong> Drop room photography here (JPG/PNG)</div>
     </div>
     
     <div class="preview-wrap" id="roomPreview">
@@ -395,33 +376,40 @@
     </div>
   </div>
 
-  <!-- STEP 2: DIRECTIVE -->
+  <!-- STEP 2: OBJECT ASSET -->
   <div class="step-container disabled" id="step2">
     <div class="step-header">
       <span class="step-num">02 /</span>
+      <h2 class="step-title">SUBJECT ASSET</h2>
+    </div>
+    <p class="step-desc">Next, upload the specific furniture piece or object you want to insert into the scene above.</p>
+    
+    <div class="drop-zone" id="objZone">
+      <input type="file" id="objInput" accept="image/*" />
+      <div class="drop-text"><strong>UPLOAD REPLACEMENT ASSET</strong> Drop object reference here (JPG/PNG)</div>
+    </div>
+    
+    <div class="preview-wrap" id="objPreview">
+      <span class="preview-badge">REFERENCE ASSET</span>
+      <button class="preview-action" id="objRemove">REPLACE ASSET</button>
+      <img id="objPreviewImg" src="" alt="Reference Object" />
+    </div>
+  </div>
+
+  <!-- STEP 3: DIRECTIVE -->
+  <div class="step-container disabled" id="step3">
+    <div class="step-header">
+      <span class="step-num">03 /</span>
       <h2 class="step-title">EDITORIAL DIRECTIVE</h2>
     </div>
+    <p class="step-desc">Finally, state your intent. Where should the object go? What should it replace?</p>
     
-    <textarea class="prompt-input" id="promptInput" placeholder="Describe the adjustment. e.g. 'Remove the sofa' or 'Replace existing flooring with white oak chevron...'"></textarea>
+    <textarea class="prompt-input" id="promptInput" placeholder="e.g. 'Replace the wooden chair with this reference asset...'"></textarea>
     
     <div class="prompt-suggestions">
-      <span class="suggestion-chip" data-prompt="Remove the primary seating">REMOVE SEATING</span>
-      <span class="suggestion-chip" data-prompt="Change the wall colour to warm sage green">SCENE: SAGE WALLS</span>
-      <span class="suggestion-chip" data-prompt="Convert the aesthetic to a Scandinavian minimalist interior">AESTHETIC: SCANDINAVIAN</span>
-    </div>
-
-    <!-- Optional Reference Library -->
-    <div class="optional-block-toggle" id="refToggle">ATTACH REFERENCE MATERIAL (ADVANCED)</div>
-    <div class="optional-block" id="refPanel">
-      <div class="drop-zone" id="objZone" style="padding: var(--spacing-md);">
-        <input type="file" id="objInput" accept="image/*" />
-        <div class="drop-text"><strong>UPLOAD REPLACEMENT ASSET</strong> Upload a specific furniture piece</div>
-      </div>
-      <div class="preview-wrap" id="objPreview">
-        <span class="preview-badge">REFERENCE ASSET</span>
-        <button class="preview-action" id="objRemove">REMOVE</button>
-        <img id="objPreviewImg" src="" alt="Reference Object" />
-      </div>
+      <span class="suggestion-chip" data-prompt="Replace the primary seating with the reference asset">REPLACE SEATING</span>
+      <span class="suggestion-chip" data-prompt="Add the reference asset into the empty corner">ADD ASSET TO CORNER</span>
+      <span class="suggestion-chip" data-prompt="Match the lighting of the room and place the asset in the center">CENTER PLACEMENT</span>
     </div>
 
     <button class="btn-generate" id="generateBtn">EXECUTE RENDER</button>
@@ -431,10 +419,10 @@
     </div>
   </div>
 
-  <!-- STEP 3: RENDER -->
-  <div class="step-container hidden" id="step3">
+  <!-- STEP 4: RENDER -->
+  <div class="step-container hidden" id="step4">
     <div class="step-header">
-      <span class="step-num" style="color: var(--ink);">03 /</span>
+      <span class="step-num" style="color: var(--ink);">04 /</span>
       <h2 class="step-title">FINAL OUTPUT</h2>
     </div>
     
@@ -464,8 +452,8 @@
 <script>
 const $ = id => document.getElementById(id);
 
-let currentBaseBlob = null; // Holds the current active environment (File or generated Blob)
-let currentBaseURL = null;  // Corresponding preview URL
+let currentBaseBlob = null; 
+let currentBaseURL = null;  
 let objFile = null;
 
 // Helpers
@@ -481,7 +469,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mime });
 }
 
-// Set Active Scene
+// Scene Upload Logic
 function setBaseEnvironment(fileOrBlob, previewUrl) {
   currentBaseBlob = fileOrBlob;
   currentBaseURL = previewUrl;
@@ -496,11 +484,31 @@ function setBaseEnvironment(fileOrBlob, previewUrl) {
     $('roomPreviewImg').src = '';
     $('roomPreview').classList.remove('visible');
     $('step2').classList.add('disabled');
-    $('step3').classList.add('hidden');
+    $('step3').classList.add('disabled');
+    $('step4').classList.add('hidden');
+    
+    // Clear step 2 as well if step 1 is removed
+    setObjectAsset(null, null);
   }
 }
 
-// Scene Upload Logic
+// Object Upload Logic
+function setObjectAsset(file, previewUrl) {
+  objFile = file;
+  
+  if (objFile) {
+    $('objZone').style.display = 'none';
+    $('objPreviewImg').src = previewUrl;
+    $('objPreview').classList.add('visible');
+    $('step3').classList.remove('disabled');
+  } else {
+    $('objZone').style.display = 'block';
+    $('objPreviewImg').src = '';
+    $('objPreview').classList.remove('visible');
+    $('step3').classList.add('disabled');
+  }
+}
+
 function handleFileRead(file, callback) {
   if (!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
@@ -508,6 +516,7 @@ function handleFileRead(file, callback) {
   reader.readAsDataURL(file);
 }
 
+// Step 1 listeners
 $('roomInput').addEventListener('change', e => handleFileRead(e.target.files[0], setBaseEnvironment));
 $('roomZone').addEventListener('dragover', e => { e.preventDefault(); $('roomZone').classList.add('dragover'); });
 $('roomZone').addEventListener('dragleave', () => $('roomZone').classList.remove('dragover'));
@@ -515,35 +524,26 @@ $('roomZone').addEventListener('drop', e => {
   e.preventDefault(); $('roomZone').classList.remove('dragover');
   handleFileRead(e.dataTransfer.files[0], setBaseEnvironment);
 });
-
 $('roomRemove').addEventListener('click', () => {
   $('roomInput').value = '';
   setBaseEnvironment(null, null);
 });
 
-// Object Upload Logic
-$('objInput').addEventListener('change', e => {
-  handleFileRead(e.target.files[0], (file, url) => {
-    objFile = file;
-    $('objZone').style.display = 'none';
-    $('objPreviewImg').src = url;
-    $('objPreview').classList.add('visible');
-  });
+// Step 2 listeners
+$('objInput').addEventListener('change', e => handleFileRead(e.target.files[0], setObjectAsset));
+$('objZone').addEventListener('dragover', e => { e.preventDefault(); $('objZone').classList.add('dragover'); });
+$('objZone').addEventListener('dragleave', () => $('objZone').classList.remove('dragover'));
+$('objZone').addEventListener('drop', e => {
+  e.preventDefault(); $('objZone').classList.remove('dragover');
+  handleFileRead(e.dataTransfer.files[0], setObjectAsset);
 });
 $('objRemove').addEventListener('click', () => {
-  objFile = null;
   $('objInput').value = '';
-  $('objZone').style.display = 'block';
-  $('objPreviewImg').src = '';
-  $('objPreview').classList.remove('visible');
+  setObjectAsset(null, null);
 });
 
-// UI Toggles
-$('refToggle').addEventListener('click', () => {
-  $('refToggle').classList.toggle('open');
-  $('refPanel').classList.toggle('visible');
-});
 
+// Prompts
 document.querySelectorAll('.suggestion-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     $('promptInput').value = chip.dataset.prompt;
@@ -557,8 +557,11 @@ $('refineBtn').addEventListener('click', () => {
   const newBlob = dataUrlToBlob(generatedUrl);
   setBaseEnvironment(newBlob, generatedUrl);
   
+  // Automatically clear old object and prompt so they can insert a new one
+  setObjectAsset(null, null); 
   $('promptInput').value = '';
-  $('step3').classList.add('hidden');
+  
+  $('step4').classList.add('hidden');
   $('step2').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
@@ -566,11 +569,12 @@ $('refineBtn').addEventListener('click', () => {
 $('generateBtn').addEventListener('click', async () => {
   hideError();
   
-  if (!currentBaseBlob) return showError('Missing Environment. Upload a scene first.');
-  if (!$('promptInput').value.trim()) return showError('Missing Directive. Describe the edit.');
+  if (!currentBaseBlob) return showError('Missing Environment. Complete Step 01 to proceed.');
+  if (!objFile) return showError('Missing Subject Asset. Complete Step 02 to proceed.');
+  if (!$('promptInput').value.trim()) return showError('Missing Directive. Describe where to place the object in Step 03.');
 
   // UI state
-  $('step3').classList.add('hidden');
+  $('step4').classList.add('hidden');
   $('generateBtn').style.display = 'none';
   $('loadingState').classList.add('visible');
   
@@ -580,7 +584,7 @@ $('generateBtn').addEventListener('click', async () => {
   const baseExt = currentBaseBlob.type === 'image/jpeg' ? 'jpg' : 'png';
   formData.append('room_image', new File([currentBaseBlob], `base-layer.${baseExt}`, { type: currentBaseBlob.type }));
   formData.append('prompt', $('promptInput').value.trim());
-  if (objFile) formData.append('object_image', objFile);
+  formData.append('object_image', objFile); // Forced explicitly
 
   try {
     const res = await fetch('/edit', { method: 'POST', body: formData });
@@ -592,13 +596,13 @@ $('generateBtn').addEventListener('click', async () => {
 
     const resultDataUrl = `data:image/${json.format};base64,${b64List[0]}`;
     
-    // Set step 3 images
+    // Set step 4 images
     $('beforeImg').src = currentBaseURL;
     $('afterImg').src = resultDataUrl;
     $('downloadBtn').href = resultDataUrl;
     
-    $('step3').classList.remove('hidden');
-    $('step3').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('step4').classList.remove('hidden');
+    $('step4').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   } catch (err) {
     showError(err.message || 'System error. Please retry.');
