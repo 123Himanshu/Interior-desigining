@@ -3,612 +3,435 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI Room Visualizer</title>
+<title>AI Room Visualizer | Editor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   /* ── Tokens & Base ─────────────────────────────────────────── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --canvas: #181818;
-    --canvas-elevated: #303030;
+    --canvas: #121212;
+    --panel: #181818;
+    --panel-elevated: #242424;
     --primary: #da291c;
     --primary-active: #b01e0a;
     --ink: #ffffff;
     --body: #969696;
-    --muted: #666666;
-    --hairline: #303030;
+    --muted: #4a4a4a;
+    --hairline: #2a2a2a;
     --error: #f13a2c;
     --spacing-xxs: 8px;
     --spacing-xs: 16px;
     --spacing-sm: 24px;
     --spacing-md: 32px;
     --spacing-lg: 48px;
-    --spacing-xl: 64px;
-    --spacing-xxl: 96px;
-    --spacing-super: 128px;
-    --rounded-none: 0px;
-    --rounded-sm: 4px;
-    --rounded-full: 9999px;
   }
-
-  body {
+  body, html {
     background: var(--canvas);
     color: var(--ink);
     font-family: 'Inter', -apple-system, system-ui, sans-serif;
-    font-weight: 400;
-    min-height: 100vh;
-    overflow-x: hidden;
-    -webkit-font-smoothing: antialiased;
+    height: 100vh;
+    overflow: hidden;
   }
 
-  /* ── Typography & Navigation ──────────────────────────────── */
+  /* ── Layout ────────────────────────────────────────────────── */
+  .app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
   .top-nav {
-    height: 64px;
+    height: 56px;
+    background: var(--panel);
     border-bottom: 1px solid var(--hairline);
     display: flex;
     align-items: center;
     padding: 0 var(--spacing-sm);
     text-transform: uppercase;
     font-weight: 600;
-    font-size: 13px;
+    font-size: 12px;
     letter-spacing: 0.65px;
+    z-index: 10;
   }
-  
   .brand-mark {
     font-weight: 700;
     letter-spacing: 2px;
     color: var(--primary);
     margin-right: auto;
   }
-
-  .wrapper {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: var(--spacing-xl) var(--spacing-sm) var(--spacing-super);
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
   }
 
-  h1 {
-    font-size: clamp(36px, 5vw, 64px);
+  /* ── Sidebar (Left) ──────────────────────────────────────── */
+  .sidebar {
+    width: 380px;
+    background: var(--panel);
+    border-right: 1px solid var(--hairline);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    z-index: 5;
+  }
+  .sidebar-header {
+    padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-xs);
+  }
+  .sidebar-title {
+    font-size: 16px;
     font-weight: 500;
-    letter-spacing: -1.6px;
-    line-height: 1.05;
-    margin-bottom: var(--spacing-xs);
-    color: var(--ink);
+    letter-spacing: 0.2px;
   }
-
-  p.subtitle {
-    font-size: 18px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: var(--body);
-    margin-bottom: var(--spacing-lg);
-  }
-
-  /* ── Workflow Steps ──────────────────────────────────────── */
   .step-container {
-    border-top: 1px solid var(--hairline);
-    padding-top: var(--spacing-md);
-    margin-bottom: var(--spacing-xl);
-    transition: opacity 0.4s ease, filter 0.4s ease;
+    padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-sm);
+    border-bottom: 1px solid var(--hairline);
+    transition: opacity 0.3s;
   }
-  
-  .step-container.disabled {
-    opacity: 0.3;
-    pointer-events: none;
-    filter: grayscale(100%);
-  }
-
-  .step-container.hidden {
-    display: none;
-  }
-
+  .step-container.disabled { opacity: 0.3; pointer-events: none; filter: grayscale(100%); }
   .step-header {
     display: flex;
     align-items: baseline;
-    gap: var(--spacing-xs);
-    margin-bottom: var(--spacing-xs);
+    gap: 8px;
+    margin-bottom: var(--spacing-xxs);
   }
+  .step-num { color: var(--primary); font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+  .step-label { font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--body); letter-spacing: 0.5px;}
 
-  .step-num {
-    font-weight: 700;
-    font-size: 13px;
-    letter-spacing: 1.1px;
-    color: var(--primary);
-  }
-
-  .step-title {
-    font-size: 26px;
-    font-weight: 500;
-    letter-spacing: 0.195px;
-    color: var(--ink);
-  }
-  
-  .step-desc {
-    color: var(--body); 
-    margin-bottom: var(--spacing-md); 
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  /* ── Drop Zones & Uploads ────────────────────────────────── */
+  /* Drop Zones */
   .drop-zone {
     border: 1px dashed var(--muted);
-    border-radius: var(--rounded-none);
-    padding: var(--spacing-xl) var(--spacing-sm);
+    background: var(--canvas);
+    padding: var(--spacing-sm) var(--spacing-xs);
     text-align: center;
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
     position: relative;
-    background: var(--canvas-elevated);
+    transition: all 0.2s;
+    margin-top: 12px;
   }
-  .drop-zone:hover, .drop-zone.dragover {
-    border-color: var(--ink);
-    background: #3a3a3a;
-  }
-  .drop-zone input[type="file"] {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-    width: 100%;
-    height: 100%;
-  }
-  .drop-text { font-size: 14px; color: var(--body); font-weight: 400; }
-  .drop-text strong { color: var(--ink); font-weight: 500; display: block; margin-bottom: var(--spacing-xxs); text-transform: uppercase; letter-spacing: 1px;}
+  .drop-zone:hover { border-color: var(--ink); background: var(--panel-elevated); }
+  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-text { font-size: 12px; color: var(--body); }
+  .drop-text strong { display: block; color: var(--ink); margin-bottom: 4px; }
   
-  .preview-wrap {
-    position: relative;
+  /* Uploaded State inside sidebar */
+  .mini-preview {
     display: none;
-  }
-  .preview-wrap.visible { display: block; }
-  .preview-wrap img {
-    width: 100%;
-    max-height: 500px;
-    object-fit: cover;
-    display: block;
-    border-radius: var(--rounded-none);
-  }
-  .preview-badge {
-    position: absolute;
-    top: var(--spacing-sm);
-    left: var(--spacing-sm);
-    background: rgba(24, 24, 24, 0.8);
-    backdrop-filter: blur(4px);
-    color: var(--ink);
-    padding: 6px 14px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 1.1px;
-    text-transform: uppercase;
-    border: 1px solid var(--hairline);
-  }
-  .preview-action {
-    position: absolute;
-    top: var(--spacing-sm);
-    right: var(--spacing-sm);
-    background: rgba(24, 24, 24, 0.8);
-    backdrop-filter: blur(4px);
-    border: 1px solid var(--hairline);
-    color: var(--ink);
-    padding: 6px 14px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 1.1px;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-  .preview-action:hover { background: var(--canvas); }
-
-  /* ── Directives & Forms ──────────────────────────────────── */
-  .prompt-input {
-    width: 100%;
+    margin-top: 12px;
     background: var(--canvas);
+    padding: 8px;
     border: 1px solid var(--hairline);
-    border-radius: var(--rounded-none);
-    padding: 16px 20px;
-    color: var(--ink);
-    font-family: inherit;
-    font-size: 16px;
-    line-height: 1.5;
-    resize: vertical;
-    min-height: 120px;
+    align-items: center;
+    gap: 12px;
+  }
+  .mini-preview.visible { display: flex; }
+  .mini-preview img { width: 48px; height: 48px; object-fit: cover; }
+  .mini-preview-info { flex: 1; }
+  .mini-preview-name { font-size: 12px; font-weight: 500; color: var(--ink); margin-bottom: 2px;}
+  .mini-preview-action { font-size: 10px; color: var(--primary); cursor: pointer; font-weight: 600; text-transform: uppercase;}
+
+  /* Directive */
+  .prompt-input {
+    width: 100%; height: 100px; background: var(--canvas); border: 1px solid var(--hairline);
+    color: var(--ink); padding: 12px; font-family: inherit; font-size: 13px; resize: none; margin-top: 12px;
     outline: none;
-    transition: border-color 0.2s;
   }
-  .prompt-input:focus {
-    border-color: var(--body);
-  }
+  .prompt-input:focus { border-color: var(--body); }
 
-  .prompt-suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-xs);
-    margin-top: var(--spacing-sm);
-  }
-  .suggestion-chip {
-    background: transparent;
-    border: 1px solid var(--hairline);
-    color: var(--body);
-    padding: 10px 16px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.65px;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: border-color 0.2s, color 0.2s;
-    user-select: none;
-  }
-  .suggestion-chip:hover {
-    border-color: var(--ink);
-    color: var(--ink);
-  }
-
-  /* ── Buttons ─────────────────────────────────────────────── */
+  /* Button Sidebar */
+  .sidebar-footer { padding: var(--spacing-sm); margin-top: auto; }
   .btn-generate {
-    width: 100%;
-    background: var(--primary);
-    color: #ffffff;
-    border: none;
-    border-radius: var(--rounded-none);
-    padding: var(--spacing-xs) var(--spacing-md);
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 1.4px;
-    text-transform: uppercase;
-    cursor: pointer;
-    height: 56px;
-    transition: background 0.2s;
-    margin-top: var(--spacing-xl);
+    width: 100%; background: var(--primary); color: #fff; border: none; padding: 16px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer; transition: 0.2s;
   }
-  .btn-generate:hover:not(:disabled) { background: var(--primary-active); }
-  .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-generate:hover { background: var(--primary-active); }
 
-  .btn-outline {
-    background: transparent;
-    color: var(--ink);
-    border: 1px solid var(--ink);
-    padding: 0 var(--spacing-md);
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 1.4px;
-    text-transform: uppercase;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-flex;
+  /* ── Canvas (Right) ────────────────────────────────────────── */
+  .canvas-area {
+    flex: 1;
+    background: var(--canvas);
+    position: relative;
+    display: flex;
     align-items: center;
     justify-content: center;
-    height: 48px;
-    transition: background 0.2s, color 0.2s;
+    padding: var(--spacing-md);
   }
-  .btn-outline:hover { background: var(--ink); color: var(--canvas); }
+  .empty-state {
+    text-align: center; color: var(--muted);
+  }
+  .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5; }
+  
+  .viewport { display: none; width: 100%; height: 100%; align-items: center; justify-content: center; position: relative; }
+  .viewport.visible { display: flex; }
+  
+  .viewport img.main-img {
+    max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  }
+  
+  /* Result specific */
+  .result-view { display: none; width: 100%; height: 100%; flex-direction: column; }
+  .result-view.visible { display: flex; }
+  .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm); }
+  .result-title { font-size: 18px; font-weight: 500; }
+  .result-actions { display: flex; gap: 12px; }
+  .btn-ghost { background: transparent; border: 1px solid var(--hairline); color: var(--ink); padding: 8px 16px; font-size: 11px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; text-decoration: none;}
+  .btn-ghost:hover { border-color: var(--body); }
+  
+  .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; height: 100%; min-height: 0; }
+  .image-pane { display: flex; flex-direction: column; height: 100%; }
+  .pane-label { font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--body); margin-bottom: 8px; text-transform: uppercase; }
+  .pane-img-wrap { flex: 1; background: var(--panel); display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--hairline); }
+  .pane-img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
-  /* ── Loading, Error & Results ────────────────────────────── */
-  .loading-state {
-    display: none;
-    margin-top: var(--spacing-sm);
-    text-align: center;
-    padding: var(--spacing-lg) 0;
+  /* Loading Override */
+  .overlay-loader {
+    position: absolute; inset: 0; background: rgba(18,18,18,0.85); backdrop-filter: blur(4px);
+    display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 20; color: var(--primary);
   }
-  .loading-state.visible { display: block; }
-  .loading-text { font-size: 18px; font-weight: 600; letter-spacing: 1.1px; color: var(--primary); margin-bottom: 8px;}
+  .overlay-loader.visible { display: flex; }
+  .spinner { border: 2px solid var(--hairline); border-top-color: var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  .error-toast { position: fixed; bottom: 24px; right: 24px; background: #f13a2c; color: white; padding: 16px 24px; font-size: 13px; font-weight: 500; z-index: 100; transform: translateY(100px); opacity: 0; transition: all 0.3s; }
+  .error-toast.visible { transform: translateY(0); opacity: 1; }
 
-  .error-box {
-    display: none;
-    background: rgba(241, 58, 44, 0.1);
-    border: 1px solid var(--error);
-    padding: var(--spacing-sm);
-    color: var(--error);
-    font-size: 14px;
-    margin-bottom: var(--spacing-md);
-  }
-  .error-box.visible { display: block; }
-
-  .result-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: var(--spacing-xl);
-    margin-bottom: var(--spacing-lg);
-  }
-  @media (min-width: 768px) {
-    .result-grid { grid-template-columns: 1fr 1fr; }
-  }
-
-  .pane-header {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 1.1px;
-    color: var(--body);
-    margin-bottom: var(--spacing-xs);
-    text-transform: uppercase;
-  }
-  .pane-header strong { color: var(--ink); margin-left: 8px; }
-
-  .result-image-wrap { background: var(--canvas-elevated); margin-bottom: var(--spacing-sm); }
-  .result-image-wrap img { width: 100%; display: block; object-fit: cover; aspect-ratio: 4/3; }
-
-  .action-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-    margin-top: var(--spacing-lg);
-    padding-top: var(--spacing-md);
-    border-top: 1px solid var(--hairline);
-  }
 </style>
 </head>
 <body>
 
-<div class="top-nav">
-  <div class="brand-mark">VISUALIZER</div>
-  <div>INTERIOR DESIGN EDITOR</div>
-</div>
+<div class="app-container">
+  <nav class="top-nav">
+    <div class="brand-mark">VISUALIZER</div>
+    <div>Pro Studio Interface</div>
+  </nav>
 
-<div class="wrapper">
+  <div class="workspace">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Pipeline Configuration</h2>
+      </div>
+
+      <!-- Step 1 -->
+      <div class="step-container" id="step1">
+        <div class="step-header">
+          <span class="step-num">01 /</span><span class="step-label">Environment Architecture</span>
+        </div>
+        <div class="drop-zone" id="roomZone">
+          <input type="file" id="roomInput" accept="image/*" />
+          <div class="drop-text"><strong>UPLOAD SCENE</strong> Drop main room photo</div>
+        </div>
+        <div class="mini-preview" id="roomMini">
+          <img id="roomThumb" src="" />
+          <div class="mini-preview-info">
+            <div class="mini-preview-name">Base Layer Active</div>
+            <div class="mini-preview-action" id="roomRemove">Replace Scene</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step-container disabled" id="step2">
+        <div class="step-header">
+          <span class="step-num">02 /</span><span class="step-label">Subject Asset</span>
+        </div>
+        <div class="drop-zone" id="objZone">
+          <input type="file" id="objInput" accept="image/*" />
+          <div class="drop-text"><strong>UPLOAD OBJECT</strong> Drop reference furniture</div>
+        </div>
+        <div class="mini-preview" id="objMini">
+          <img id="objThumb" src="" />
+          <div class="mini-preview-info">
+            <div class="mini-preview-name">Asset Attached</div>
+            <div class="mini-preview-action" id="objRemove">Replace Asset</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step-container disabled" id="step3">
+        <div class="step-header">
+          <span class="step-num">03 /</span><span class="step-label">Editorial Directive</span>
+        </div>
+        <textarea class="prompt-input" id="promptInput" placeholder="Describe integration. E.g. 'Replace the center table with the reference asset, matching the window lighting...'"></textarea>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="btn-generate" id="generateBtn">Process Render</button>
+      </div>
+    </aside>
+
+    <!-- MAIN CANVAS -->
+    <main class="canvas-area">
+      <!-- Empty State -->
+      <div class="empty-state" id="emptyState">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+        <p>Awaiting environment upload to initialize workspace.</p>
+      </div>
+
+      <!-- Viewport (Shows original while prepping) -->
+      <div class="viewport" id="viewport">
+        <img id="canvasMainImg" class="main-img" src="" alt="Active Scene" />
+      </div>
+
+      <!-- Result Split View -->
+      <div class="result-view" id="resultView">
+        <div class="result-header">
+          <div class="result-title">Render Complete</div>
+          <div class="result-actions">
+            <button class="btn-ghost" id="refineBtn">Iterate Layer</button>
+            <a class="btn-ghost" id="downloadBtn" href="#" style="border-color: var(--primary); color: var(--primary);">Export</a>
+          </div>
+        </div>
+        <div class="comparison-grid">
+          <div class="image-pane">
+            <div class="pane-label">Archive (Source)</div>
+            <div class="pane-img-wrap"><img id="beforeImg" src="" /></div>
+          </div>
+          <div class="image-pane">
+            <div class="pane-label" style="color: var(--primary);">Synthesis (Output)</div>
+            <div class="pane-img-wrap"><img id="afterImg" src="" /></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading Overlay -->
+      <div class="overlay-loader" id="loader">
+        <div class="spinner"></div>
+        <div style="font-weight: 600; letter-spacing: 1px; font-size: 13px; text-transform: uppercase;">Synthesizing Scene...</div>
+        <div style="margin-top: 8px; color: var(--body); font-size: 11px;">Applying photorealistic constraints. Expected runtime: 15s.</div>
+      </div>
+    </main>
+  </div>
   
-  <header>
-    <h1>Cinematic Room Editor</h1>
-    <p class="subtitle">Direct your photorealistic scene. Upload environment architecture, insert an object asset, and apply narrative direction.</p>
-  </header>
-
-  <div class="error-box" id="errorBox"><span id="errorMsg"></span></div>
-
-  <!-- STEP 1: SCENE -->
-  <div class="step-container" id="step1">
-    <div class="step-header">
-      <span class="step-num">01 /</span>
-      <h2 class="step-title">SCENE DEFINITION</h2>
-    </div>
-    <p class="step-desc">First, establish the base environment. Upload a high-quality photograph of the room.</p>
-    
-    <div class="drop-zone" id="roomZone">
-      <input type="file" id="roomInput" accept="image/*" />
-      <div class="drop-text"><strong>UPLOAD BASE ENVIRONMENT</strong> Drop room photography here (JPG/PNG)</div>
-    </div>
-    
-    <div class="preview-wrap" id="roomPreview">
-      <span class="preview-badge">ACTIVE SCENE</span>
-      <button class="preview-action" id="roomRemove">REPLACE ENVIRONMENT</button>
-      <img id="roomPreviewImg" src="" alt="Active Scene" />
-    </div>
-  </div>
-
-  <!-- STEP 2: OBJECT ASSET -->
-  <div class="step-container disabled" id="step2">
-    <div class="step-header">
-      <span class="step-num">02 /</span>
-      <h2 class="step-title">SUBJECT ASSET</h2>
-    </div>
-    <p class="step-desc">Next, upload the specific furniture piece or object you want to insert into the scene above.</p>
-    
-    <div class="drop-zone" id="objZone">
-      <input type="file" id="objInput" accept="image/*" />
-      <div class="drop-text"><strong>UPLOAD REPLACEMENT ASSET</strong> Drop object reference here (JPG/PNG)</div>
-    </div>
-    
-    <div class="preview-wrap" id="objPreview">
-      <span class="preview-badge">REFERENCE ASSET</span>
-      <button class="preview-action" id="objRemove">REPLACE ASSET</button>
-      <img id="objPreviewImg" src="" alt="Reference Object" />
-    </div>
-  </div>
-
-  <!-- STEP 3: DIRECTIVE -->
-  <div class="step-container disabled" id="step3">
-    <div class="step-header">
-      <span class="step-num">03 /</span>
-      <h2 class="step-title">EDITORIAL DIRECTIVE</h2>
-    </div>
-    <p class="step-desc">Finally, state your intent. Where should the object go? What should it replace?</p>
-    
-    <textarea class="prompt-input" id="promptInput" placeholder="e.g. 'Replace the wooden chair with this reference asset...'"></textarea>
-    
-    <div class="prompt-suggestions">
-      <span class="suggestion-chip" data-prompt="Replace the primary seating with the reference asset">REPLACE SEATING</span>
-      <span class="suggestion-chip" data-prompt="Add the reference asset into the empty corner">ADD ASSET TO CORNER</span>
-      <span class="suggestion-chip" data-prompt="Match the lighting of the room and place the asset in the center">CENTER PLACEMENT</span>
-    </div>
-
-    <button class="btn-generate" id="generateBtn">EXECUTE RENDER</button>
-    <div class="loading-state" id="loadingState">
-      <div class="loading-text">RENDERING SCENE</div>
-      <div style="color: var(--body); font-size: 14px;">Applying generative constraints. Expected duration: 15-30s.</div>
-    </div>
-  </div>
-
-  <!-- STEP 4: RENDER -->
-  <div class="step-container hidden" id="step4">
-    <div class="step-header">
-      <span class="step-num" style="color: var(--ink);">04 /</span>
-      <h2 class="step-title">FINAL OUTPUT</h2>
-    </div>
-    
-    <div class="result-grid">
-      <div>
-        <div class="pane-header">ARCHIVE <strong>BEFORE</strong></div>
-        <div class="result-image-wrap"><img id="beforeImg" src="" alt="Before" /></div>
-      </div>
-      <div>
-        <div class="pane-header" style="color: var(--primary);">GENERATED <strong>AFTER</strong></div>
-        <div class="result-image-wrap"><img id="afterImg" src="" alt="After" /></div>
-      </div>
-    </div>
-
-    <div class="action-bar">
-      <a class="btn-outline" style="background: var(--primary); color: #fff; border-color: var(--primary);" id="downloadBtn" href="#" download="ferrari-style-render.png">
-        DOWNLOAD RENDER
-      </a>
-      <button class="btn-outline" id="refineBtn">
-        ITERATE ON THIS RESULT →
-      </button>
-    </div>
-  </div>
-
+  <div class="error-toast" id="errorToast"></div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
+let baseBlob = null, baseURL = null, objBlob = null;
 
-let currentBaseBlob = null; 
-let currentBaseURL = null;  
-let objFile = null;
-
-// Helpers
-function showError(msg) { $('errorBox').classList.add('visible'); $('errorMsg').textContent = msg; }
-function hideError() { $('errorBox').classList.remove('visible'); }
-function dataUrlToBlob(dataUrl) {
-  const parts = dataUrl.split(",");
-  const mime = parts[0].match(/:(.*?);/)[1];
-  const bin = atob(parts[1]);
-  const len = bin.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type: mime });
+function showToast(msg) {
+  $('errorToast').textContent = msg;
+  $('errorToast').classList.add('visible');
+  setTimeout(() => $('errorToast').classList.remove('visible'), 4000);
 }
 
-// Scene Upload Logic
-function setBaseEnvironment(fileOrBlob, previewUrl) {
-  currentBaseBlob = fileOrBlob;
-  currentBaseURL = previewUrl;
+function dataUrlToBlob(url) {
+  const parts = url.split(",");
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const bin = atob(parts[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+function updateCanvasState() {
+  if ($('resultView').classList.contains('visible')) return; // handled separately
   
-  if (currentBaseBlob) {
+  if (baseURL) {
+    $('emptyState').style.display = 'none';
+    $('canvasMainImg').src = baseURL;
+    $('viewport').classList.add('visible');
+  } else {
+    $('emptyState').style.display = 'block';
+    $('viewport').classList.remove('visible');
+  }
+}
+
+// Environment Logic
+function setEnvironment(file, url) {
+  baseBlob = file; baseURL = url;
+  if(baseBlob) {
     $('roomZone').style.display = 'none';
-    $('roomPreviewImg').src = currentBaseURL;
-    $('roomPreview').classList.add('visible');
+    $('roomThumb').src = url;
+    $('roomMini').classList.add('visible');
     $('step2').classList.remove('disabled');
   } else {
     $('roomZone').style.display = 'block';
-    $('roomPreviewImg').src = '';
-    $('roomPreview').classList.remove('visible');
+    $('roomMini').classList.remove('visible');
     $('step2').classList.add('disabled');
     $('step3').classList.add('disabled');
-    $('step4').classList.add('hidden');
-    
-    // Clear step 2 as well if step 1 is removed
-    setObjectAsset(null, null);
+    setAsset(null, null);
   }
+  updateCanvasState();
 }
 
-// Object Upload Logic
-function setObjectAsset(file, previewUrl) {
-  objFile = file;
-  
-  if (objFile) {
+// Asset Logic
+function setAsset(file, url) {
+  objBlob = file;
+  if(objBlob) {
     $('objZone').style.display = 'none';
-    $('objPreviewImg').src = previewUrl;
-    $('objPreview').classList.add('visible');
+    $('objThumb').src = url;
+    $('objMini').classList.add('visible');
     $('step3').classList.remove('disabled');
   } else {
     $('objZone').style.display = 'block';
-    $('objPreviewImg').src = '';
-    $('objPreview').classList.remove('visible');
+    $('objMini').classList.remove('visible');
     $('step3').classList.add('disabled');
   }
 }
 
-function handleFileRead(file, callback) {
-  if (!file || !file.type.startsWith('image/')) return;
-  const reader = new FileReader();
-  reader.onload = e => callback(file, e.target.result);
-  reader.readAsDataURL(file);
+function handleRead(file, cb) {
+  if(!file || !file.type.startsWith('image/')) return;
+  const r = new FileReader();
+  r.onload = e => cb(file, e.target.result);
+  r.readAsDataURL(file);
 }
 
-// Step 1 listeners
-$('roomInput').addEventListener('change', e => handleFileRead(e.target.files[0], setBaseEnvironment));
-$('roomZone').addEventListener('dragover', e => { e.preventDefault(); $('roomZone').classList.add('dragover'); });
-$('roomZone').addEventListener('dragleave', () => $('roomZone').classList.remove('dragover'));
-$('roomZone').addEventListener('drop', e => {
-  e.preventDefault(); $('roomZone').classList.remove('dragover');
-  handleFileRead(e.dataTransfer.files[0], setBaseEnvironment);
-});
-$('roomRemove').addEventListener('click', () => {
-  $('roomInput').value = '';
-  setBaseEnvironment(null, null);
-});
+// Binds
+$('roomInput').addEventListener('change', e => handleRead(e.target.files[0], setEnvironment));
+$('roomRemove').addEventListener('click', () => { $('roomInput').value=''; setEnvironment(null,null); $('resultView').classList.remove('visible'); });
 
-// Step 2 listeners
-$('objInput').addEventListener('change', e => handleFileRead(e.target.files[0], setObjectAsset));
-$('objZone').addEventListener('dragover', e => { e.preventDefault(); $('objZone').classList.add('dragover'); });
-$('objZone').addEventListener('dragleave', () => $('objZone').classList.remove('dragover'));
-$('objZone').addEventListener('drop', e => {
-  e.preventDefault(); $('objZone').classList.remove('dragover');
-  handleFileRead(e.dataTransfer.files[0], setObjectAsset);
-});
-$('objRemove').addEventListener('click', () => {
-  $('objInput').value = '';
-  setObjectAsset(null, null);
-});
+$('objInput').addEventListener('change', e => handleRead(e.target.files[0], setAsset));
+$('objRemove').addEventListener('click', () => { $('objInput').value=''; setAsset(null,null); });
 
-
-// Prompts
-document.querySelectorAll('.suggestion-chip').forEach(chip => {
-  chip.addEventListener('click', () => {
-    $('promptInput').value = chip.dataset.prompt;
-    $('promptInput').focus();
-  });
-});
-
-// Refine Button (Iterative Loop)
+// Iterate
 $('refineBtn').addEventListener('click', () => {
-  const generatedUrl = $('afterImg').src;
-  const newBlob = dataUrlToBlob(generatedUrl);
-  setBaseEnvironment(newBlob, generatedUrl);
-  
-  // Automatically clear old object and prompt so they can insert a new one
-  setObjectAsset(null, null); 
+  const url = $('afterImg').src;
+  setEnvironment(dataUrlToBlob(url), url);
+  setAsset(null, null);
   $('promptInput').value = '';
-  
-  $('step4').classList.add('hidden');
-  $('step2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('resultView').classList.remove('visible');
 });
 
-// Execution
+// Generate
 $('generateBtn').addEventListener('click', async () => {
-  hideError();
-  
-  if (!currentBaseBlob) return showError('Missing Environment. Complete Step 01 to proceed.');
-  if (!objFile) return showError('Missing Subject Asset. Complete Step 02 to proceed.');
-  if (!$('promptInput').value.trim()) return showError('Missing Directive. Describe where to place the object in Step 03.');
+  if (!baseBlob) return showToast('Missing Environment: Please assign a scene.');
+  if (!objBlob) return showToast('Missing Asset: Please assign a reference object.');
+  if (!$('promptInput').value.trim()) return showToast('Missing Directive: Add an editorial prompt.');
 
-  // UI state
-  $('step4').classList.add('hidden');
-  $('generateBtn').style.display = 'none';
-  $('loadingState').classList.add('visible');
-  
+  $('loader').classList.add('visible');
+  $('resultView').classList.remove('visible');
+  $('viewport').classList.remove('visible');
+  $('emptyState').style.display = 'none';
+
   const formData = new FormData();
-  
-  // Attach current base as file
-  const baseExt = currentBaseBlob.type === 'image/jpeg' ? 'jpg' : 'png';
-  formData.append('room_image', new File([currentBaseBlob], `base-layer.${baseExt}`, { type: currentBaseBlob.type }));
+  const ext = baseBlob.type === 'image/jpeg' ? 'jpg' : 'png';
+  formData.append('room_image', new File([baseBlob], `layer.${ext}`, { type: baseBlob.type }));
+  formData.append('object_image', objBlob);
   formData.append('prompt', $('promptInput').value.trim());
-  formData.append('object_image', objFile); // Forced explicitly
 
   try {
     const res = await fetch('/edit', { method: 'POST', body: formData });
     const json = await res.json();
-    if (!res.ok) throw new Error(json.detail || `System Error ${res.status}`);
-
-    const b64List = (json.images_b64 && json.images_b64.length) ? json.images_b64 : [json.image_b64];
-    if (!b64List[0]) throw new Error('Void output from render engine.');
-
-    const resultDataUrl = `data:image/${json.format};base64,${b64List[0]}`;
+    if (!res.ok) throw new Error(json.detail || `Error ${res.status}`);
     
-    // Set step 4 images
-    $('beforeImg').src = currentBaseURL;
-    $('afterImg').src = resultDataUrl;
-    $('downloadBtn').href = resultDataUrl;
+    const b64 = (json.images_b64 && json.images_b64.length) ? json.images_b64[0] : json.image_b64;
+    const finalUrl = `data:image/${json.format};base64,${b64}`;
     
-    $('step4').classList.remove('hidden');
-    $('step4').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  } catch (err) {
-    showError(err.message || 'System error. Please retry.');
+    $('beforeImg').src = baseURL;
+    $('afterImg').src = finalUrl;
+    $('downloadBtn').href = finalUrl;
+    $('downloadBtn').download = 'synthesis-output.png';
+    
+    $('resultView').classList.add('visible');
+  } catch(err) {
+    showToast(err.message);
+    updateCanvasState();
   } finally {
-    $('loadingState').classList.remove('visible');
-    $('generateBtn').style.display = 'flex';
+    $('loader').classList.remove('visible');
   }
 });
 </script>
