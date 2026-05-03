@@ -181,6 +181,21 @@
   .error-toast { position: fixed; bottom: 24px; right: 24px; background: #f13a2c; color: white; padding: 16px 24px; font-size: 13px; font-weight: 500; z-index: 100; transform: translateY(100px); opacity: 0; transition: all 0.3s; box-shadow: 0 10px 30px rgba(241, 58, 44, 0.4); }
   .error-toast.visible { transform: translateY(0); opacity: 1; }
 
+  /* ── Responsive Mobile ────────────────────────────────────── */
+  @media (max-width: 768px) {
+    body, html { height: auto; min-height: 100%; overflow-y: auto; }
+    .app-container { height: auto; min-height: 100vh; }
+    .workspace { flex-direction: column; overflow: visible; }
+    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--hairline); box-shadow: 0 4px 16px rgba(0,0,0,0.5); position: relative; }
+    .canvas-area { min-height: 50vh; padding: var(--spacing-sm); }
+    .comparison-grid { grid-template-columns: 1fr; gap: var(--spacing-sm); height: auto; }
+    .viewport img.main-img { max-height: 50vh; }
+    .floating-asset { width: 120px; bottom: 16px; right: 16px; }
+    .image-pane { height: auto; }
+    .pane-img-wrap { min-height: 250px; height: auto; padding: 8px; }
+    .result-view { height: auto; flex-direction: column; }
+    .result-header { gap: 12px; flex-wrap: wrap; }
+  }
 </style>
 </head>
 <body>
