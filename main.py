@@ -68,8 +68,10 @@ def build_edit_prompt(user_prompt: str, has_object_reference: bool) -> str:
     """Build a structured prompt for reliable interior edits using industry-grade constraints."""
     reference_instruction = (
         "CRITICAL: Use the second uploaded image as the exact replacement subject asset. "
-        "Match its shape perfectly. Ground it with realistic contact shadows that follow "
-        "the room's primary light direction. Extract and apply its exact materiality and textures."
+        "Match its shape perfectly. Place the new object EXACTLY in the same spatial location and footprint as the original furniture piece it is replacing. "
+        "Do NOT shift its position, rotate it inappropriately, or place it elsewhere in the room. "
+        "Ground it with realistic contact shadows that follow the room's primary light direction. "
+        "Extract and apply its exact materiality and textures."
         if has_object_reference
         else "Do not introduce unrelated new furniture, decor, or humans unless explicitly requested."
     )
@@ -78,7 +80,8 @@ def build_edit_prompt(user_prompt: str, has_object_reference: bool) -> str:
         "You are an expert architectural visualization AI and senior interior designer. "
         "Your task is to execute the user's request with strict adherence to photorealism.\n\n"
         "CORE CONSTRAINTS:\n"
-        "- ANCHOR & PRESERVE: Do NOT alter the room's overarching geometry, perspective vanishing points, or original camera angle.\n"
+        "- POSITION & PLACEMENT: It is ABSOLUTELY VITAL that the new furniture exactly replaces the old furniture's position. The new item MUST strictly occupy the same bounding box and footprint as the previous item. Do not shift it to a different wall or area.\n"
+        "- ANCHOR & PRESERVE: Do NOT alter the room's overarching geometry, perspective vanishing points, or original camera angle. The rest of the room must remain identical.\n"
         "- LIGHTING SYNTHESIS: Ensure new objects cast physically accurate shadows, receive correct key light, and respect ambient occlusion.\n"
         "- MATERIALITY: Render with tactile, high-fidelity materiality (micro-imperfections, realistic reflections).\n"
         f"- {reference_instruction}\n"
