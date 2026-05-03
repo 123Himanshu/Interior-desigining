@@ -67,25 +67,26 @@ def prepare_image(file_bytes: bytes) -> bytes:
 def build_edit_prompt(user_prompt: str, has_object_reference: bool) -> str:
     """Build a structured prompt for reliable interior edits using industry-grade constraints."""
     reference_instruction = (
-        "CRITICAL: Use the second uploaded image as the exact replacement subject asset. "
-        "Match its shape perfectly. Place the new object EXACTLY in the same spatial location and footprint as the original furniture piece it is replacing. "
-        "Do NOT shift its position, rotate it inappropriately, or place it elsewhere in the room. "
-        "Ground it with realistic contact shadows that follow the room's primary light direction. "
-        "Extract and apply its exact materiality and textures."
+        "CRITICAL: Use the second uploaded image as the specific visual reference for the new furniture/object. "
+        "Match its shape perfectly. Extract and apply its exact materiality and textures. Ground it with realistic contact shadows that follow the room's primary light direction."
         if has_object_reference
-        else "Do not introduce unrelated new furniture, decor, or humans unless explicitly requested."
+        else "Do not introduce unrelated new furniture, decor, or humans unless explicitly requested by the user."
     )
 
     return (
         "You are an expert architectural visualization AI and senior interior designer. "
         "Your task is to execute the user's request with strict adherence to photorealism.\n\n"
         "CORE CONSTRAINTS:\n"
-        "- POSITION & PLACEMENT: It is ABSOLUTELY VITAL that the new furniture exactly replaces the old furniture's position. The new item MUST strictly occupy the same bounding box and footprint as the previous item. Do not shift it to a different wall or area.\n"
-        "- ANCHOR & PRESERVE: Do NOT alter the room's overarching geometry, perspective vanishing points, or original camera angle. The rest of the room must remain identical.\n"
-        "- LIGHTING SYNTHESIS: Ensure new objects cast physically accurate shadows, receive correct key light, and respect ambient occlusion.\n"
+        "- POSITION & PLACEMENT (Handling all scenarios):\n"
+        "   * IF REPLACING of SIMILAR SIZE: The new item MUST strictly occupy the exact same spatial location and footprint. Do NOT arbitrarily shift its position.\n"
+        "   * IF REPLACING with DIFFERENT SIZE: Anchor the new item to the original origin point, but scale it naturally. Adjust bounding box gracefully while maintaining perspective.\n"
+        "   * IF ADDING to OPEN SPACE: Place the item naturally as described, strictly adhering to the room's vanishing points and realistic scale.\n"
+        "   * IF REMOVING: Flawlessly synthesize and inpaint the newly exposed background (flooring, walls) to match the surrounding texture and lighting.\n"
+        "- OCCLUSIONS & OVERLAPS: Carefully preserve any foreground objects (plants, blankets, pillars) that blocked the original object. The new object must sit behind them logically.\n"
+        "- REFLECTIONS & SHADOWS: Ensure new objects cast physically accurate ground shadows, receive correct key light, and respect ambient occlusion. Update any mirrors or glossy floors to reflect the new state.\n"
+        "- ANCHOR & PRESERVE: Do NOT alter the room's overarching geometry or camera angle. The rest of the room (walls, flooring, unaffected furniture) MUST remain identical.\n"
         "- MATERIALITY: Render with tactile, high-fidelity materiality (micro-imperfections, realistic reflections).\n"
         f"- {reference_instruction}\n"
-        "- SCALE & DEPTH: Ensure spatial depth, Z-index overlapping, and ergonomic scale are perfectly maintained.\n"
         "- CLEANLINESS: Output a single realistic edited image with NO text, NO watermarks, and NO borders.\n\n"
         f"USER DIRECTIVE: {user_prompt.strip()}"
     )

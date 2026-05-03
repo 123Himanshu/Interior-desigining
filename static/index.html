@@ -234,17 +234,17 @@
       <!-- Step 2 -->
       <div class="step-container disabled" id="step2">
         <div class="step-header">
-          <span class="step-num">02 /</span><span class="step-label">Subject Asset</span>
+          <span class="step-num">02 /</span><span class="step-label">Subject Asset (Optional)</span>
         </div>
         <div class="drop-zone" id="objZone">
           <input type="file" id="objInput" accept="image/*" />
-          <div class="drop-text"><strong>UPLOAD OBJECT</strong> Drop reference furniture</div>
+          <div class="drop-text"><strong>UPLOAD OBJECT</strong> Drop reference furniture (Optional)</div>
         </div>
         <div class="mini-preview" id="objMini">
           <img id="objThumb" src="" />
           <div class="mini-preview-info">
             <div class="mini-preview-name">Asset Attached</div>
-            <div class="mini-preview-action" id="objRemove">Replace Asset</div>
+            <div class="mini-preview-action" id="objRemove">Remove Asset</div>
           </div>
         </div>
       </div>
@@ -364,6 +364,7 @@ function setEnvironment(file, url) {
     $('roomThumb').src = url;
     $('roomMini').classList.add('visible');
     $('step2').classList.remove('disabled');
+    $('step3').classList.remove('disabled');
   } else {
     $('roomZone').style.display = 'block';
     $('roomMini').classList.remove('visible');
@@ -381,10 +382,10 @@ function setAsset(file, url) {
     $('objZone').style.display = 'none';
     $('objThumb').src = url;
     $('objMini').classList.add('visible');
-    $('step3').classList.remove('disabled');
+    // Step 3 is now always enabled if step 1 is done
   } else {
     $('objZone').style.display = 'block';
-    $('objMini').classList.remove('visible');    $('step3').classList.add('disabled');
+    $('objMini').classList.remove('visible');
   }
   updateCanvasState();
 }
@@ -397,7 +398,16 @@ function handleRead(file, cb) {
 }
 
 // Binds
-$('roomInput').addEventListener('change', e => handleRead(e.target.files[0], setEnvironment));
+$('roomInput').addEventListener('change', e => {
+  handleRead(e.target.files[0], (file, url) => {
+    setEnvironment(file, url);
+    if(file) $('step3').classList.remove('disabled'); // Enable Step 3 right away since asset is optional
+  });
+});
+$('roomRemove').addEventListener('click', () => {
+    setEnvironment(null, null);
+    $('step3').classList.add('disabled');
+});
 $('roomRemove').addEventListener('click', () => { $('roomInput').value=''; setEnvironment(null,null); $('resultView').classList.remove('visible'); });
 
 $('objInput').addEventListener('change', e => handleRead(e.target.files[0], setAsset));
