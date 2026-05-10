@@ -150,28 +150,42 @@
   .empty-state { text-align: center; color: var(--mute); font-size: 18px; }
   .empty-state svg { width: 64px; height: 64px; margin-bottom: 24px; opacity: 0.3; }
   
-  .viewport { display: none; width: 100%; height: 100%; align-items: center; justify-content: center; position: relative; }
+  .viewport { display: none; width: 100%; height: 100%; align-items: center; justify-content: center; position: relative; flex-direction: column; }
   .viewport.visible { display: flex; }
   
   .viewport img.main-img { 
-    max-width: 100%; max-height: calc(100vh - 192px); object-fit: contain; 
+    max-width: 100%; max-height: calc(100vh - 250px); object-fit: contain; 
     border-radius: var(--rounded-md);
     box-shadow: 0 8px 24px rgba(32,32,32,0.08); 
   }
   
-  /* UX feature: Picture-in-picture float for asset reference */
-  .floating-asset {
-    position: absolute; top: 32px; left: 32px;
-    width: 140px; background: var(--surface-card); border: 1px solid var(--hairline);
-    padding: 8px; display: none; flex-direction: column; z-index: 15;
-    border-radius: var(--rounded-md); cursor: zoom-in;
-    box-shadow: 0 4px 12px rgba(32,32,32,0.06); transition: transform 0.2s, width 0.3s;
+  /* UX feature: View Toggles for Scene / Asset */
+  .view-toggles {
+    display: none;
+    background: var(--surface-card);
+    padding: 6px;
+    border-radius: var(--rounded-md);
+    border: 1px solid var(--hairline);
+    margin-bottom: 24px;
+    gap: 4px;
   }
-  .floating-asset:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(32,32,32,0.1); }
-  .floating-asset.expanded { width: 300px; cursor: zoom-out; }
-  .floating-asset.visible { display: flex; }
-  .floating-asset img { width: 100%; height: auto; object-fit: contain; max-height: 250px; border-radius: var(--rounded-xs); }
-  .floating-asset-label { font-size: 11px; font-weight: 600; color: var(--mute); margin-bottom: 6px; text-align: center; }
+  .view-toggles.visible { display: inline-flex; }
+  .btn-toggle {
+    padding: 8px 20px;
+    border-radius: var(--rounded-xs);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--mute);
+    transition: all 0.2s;
+  }
+  .btn-toggle.active {
+    background: var(--canvas);
+    color: var(--ink);
+    box-shadow: 0 2px 6px rgba(32,32,32,0.06);
+  }
 
   /* Result specific */
   .result-view { display: none; width: 100%; height: 100%; flex-direction: column; }
@@ -235,7 +249,7 @@
     .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--hairline); }
     .canvas-area { min-height: 50vh; padding: 24px; }
     .viewport img.main-img { max-height: 50vh; }
-    .floating-asset { width: 120px; bottom: 16px; right: 16px; }
+    .view-toggles { margin-bottom: 16px; }
     .image-pane { height: auto; }
     .pane-img-wrap { min-height: 250px; height: auto; padding: 8px; }
     .result-view { height: auto; flex-direction: column; }
@@ -255,8 +269,6 @@
       <a href="#" class="nav-link">Docs</a>
     </div>
     <div class="nav-actions">
-      <a href="#" class="nav-link" style="margin-right: 8px;">Sign in</a>
-      <button class="btn-ghost" style="height: 36px; padding: 0 16px; font-size: 14px;">Get API Key</button>
     </div>
   </nav>
 
@@ -333,13 +345,13 @@
 
       <!-- Viewport (Shows original while prepping) -->
       <div class="viewport" id="viewport">
-        <img id="canvasMainImg" class="main-img" src="" alt="Active Scene" />
-        
-        <!-- Feature: Floating Asset PIP -->
-        <div class="floating-asset" id="floatingAsset">
-          <div class="floating-asset-label">Active Reference</div>
-          <img id="canvasAssetImg" src="" alt="Reference Subject" />
+        <div class="view-toggles" id="viewToggles">
+          <button id="btnViewScene" class="btn-toggle active">Environment</button>
+          <button id="btnViewAsset" class="btn-toggle">Reference Asset</button>
         </div>
+        
+        <img id="canvasMainImg" class="main-img" src="" alt="Active Scene" />
+        <img id="canvasAssetImg" class="main-img" src="" alt="Reference Subject" style="display: none;" />
       </div>
 
       <!-- Result Split View -->
@@ -408,12 +420,14 @@ function updateCanvasState() {
     $('viewport').classList.remove('visible');
   }
 
-  // Feature: Conditional Picture-in-Picture
+  // Feature: Toggle buttons for Asset / Scene
   if (objURL && baseURL) {
     $('canvasAssetImg').src = objURL;
-    $('floatingAsset').classList.add('visible');
+    $('viewToggles').classList.add('visible');
   } else {
-    $('floatingAsset').classList.remove('visible');
+    $('viewToggles').classList.remove('visible');
+    // Default back to scene view
+    $('btnViewScene').click();
   }
 }
 
@@ -482,9 +496,19 @@ document.querySelectorAll('.btn-preset').forEach(btn => {
   });
 });
 
-// Floating Asset Expanded Logic
-$('floatingAsset').addEventListener('click', function() {
-  this.classList.toggle('expanded');
+// View Toggle Logic
+$('btnViewScene').addEventListener('click', () => {
+  $('btnViewScene').classList.add('active');
+  $('btnViewAsset').classList.remove('active');
+  $('canvasMainImg').style.display = 'block';
+  $('canvasAssetImg').style.display = 'none';
+});
+
+$('btnViewAsset').addEventListener('click', () => {
+  $('btnViewAsset').classList.add('active');
+  $('btnViewScene').classList.remove('active');
+  $('canvasMainImg').style.display = 'none';
+  $('canvasAssetImg').style.display = 'block';
 });
 
 // Iterate
