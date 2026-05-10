@@ -86,6 +86,7 @@ def build_edit_prompt(user_prompt: str, has_object_reference: bool) -> str:
         "- REFLECTIONS & SHADOWS: Ensure new objects cast physically accurate ground shadows, receive correct key light, and respect ambient occlusion. Update any mirrors or glossy floors to reflect the new state.\n"
         "- ANCHOR & PRESERVE: Do NOT alter the room's overarching geometry or camera angle. The rest of the room (walls, flooring, unaffected furniture) MUST remain identical.\n"
         "- MATERIALITY: Render with tactile, high-fidelity materiality (micro-imperfections, realistic reflections).\n"
+        "- TEXTILES & SOFT FURNISHINGS: Ensure natural draping, folding, and realistic light transmission or opacity (especially for curtains, rugs, and bedding).\n"
         f"- {reference_instruction}\n"
         "- CLEANLINESS: Output a single realistic edited image with NO text, NO watermarks, and NO borders.\n\n"
         f"USER DIRECTIVE: {user_prompt.strip()}"
