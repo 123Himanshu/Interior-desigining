@@ -306,6 +306,14 @@ body, html {
   letter-spacing: 0.8px;
   margin-bottom: 7px;
 }
+.tag-group-hint {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--mute);
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
 .tags-row { display: flex; gap: 5px; flex-wrap: wrap; }
 .tag {
   background: var(--canvas);
@@ -1088,27 +1096,12 @@ body, html {
           </div>
         </div>
 
-        <!-- Style tags (hidden for Remove) -->
-        <div class="tag-group" id="group-style">
-          <div class="tag-group-label">Style</div>
-          <div class="tags-row" id="style-tags">
-            <button class="tag" data-group="style">Modern</button>
-            <button class="tag active" data-group="style">Minimalist</button>
-            <button class="tag" data-group="style">Scandinavian</button>
-            <button class="tag" data-group="style">Industrial</button>
-            <button class="tag" data-group="style">Boho</button>
-            <button class="tag" data-group="style">Luxury</button>
-            <button class="tag" data-group="style">Japandi</button>
-            <button class="tag" data-group="style">Coastal</button>
-          </div>
-        </div>
-
         <!-- Placement tags (hidden for Remove and Restyle) -->
         <div class="tag-group" id="group-placement">
-          <div class="tag-group-label">Placement</div>
+          <div class="tag-group-label">Placement <span class="tag-group-hint">— optional, click again to deselect</span></div>
           <div class="tags-row" id="placement-tags">
             <button class="tag" data-group="placement" data-value="in the left corner of the room">Left corner</button>
-            <button class="tag active" data-group="placement" data-value="centered along the main wall">Center wall</button>
+            <button class="tag" data-group="placement" data-value="centered along the main wall">Center wall</button>
             <button class="tag" data-group="placement" data-value="in the right corner of the room">Right corner</button>
             <button class="tag" data-group="placement" data-value="in the foreground near the viewer">Foreground</button>
             <button class="tag" data-group="placement" data-value="against the back wall in the background">Background</button>
@@ -1411,7 +1404,7 @@ const S = {
   getEditorSelected() { return LibraryStore.getAssets().filter(a => this.editorSelectedIds.has(a.id)); },
   getConfig(id) {
     if (!this.assetConfigs.has(id)) {
-      this.assetConfigs.set(id, { action: 'Add', styles: new Set(['Minimalist']), placement: 'centered along the main wall' });
+      this.assetConfigs.set(id, { action: 'Add', placement: '' });
     }
     return this.assetConfigs.get(id);
   },
@@ -1797,15 +1790,14 @@ function getActiveAssets() {
 
 /* Which tag groups are relevant per action */
 const ACTION_NEEDS = {
-  'Add':     { style: true,  placement: true  },
-  'Replace': { style: true,  placement: false },
-  'Remove':  { style: false, placement: false },
-  'Restyle': { style: true,  placement: false },
+  'Add':     { placement: true  },
+  'Replace': { placement: false },
+  'Remove':  { placement: false },
+  'Restyle': { placement: false },
 };
 
 function updateTagGroupVisibility(action) {
-  const needs = ACTION_NEEDS[action] || { style: true, placement: true };
-  $('group-style').style.display     = needs.style     ? '' : 'none';
+  const needs = ACTION_NEEDS[action] || { placement: true };
   $('group-placement').style.display = needs.placement ? '' : 'none';
 }
 
@@ -1819,9 +1811,6 @@ function focusAsset(id) {
 
   document.querySelectorAll('#action-tags .tag').forEach(t => {
     t.classList.toggle('active', t.textContent === cfg.action);
-  });
-  document.querySelectorAll('#style-tags .tag').forEach(t => {
-    t.classList.toggle('active', cfg.styles.has(t.textContent));
   });
   document.querySelectorAll('#placement-tags .tag').forEach(t => {
     t.classList.toggle('active', t.dataset.value === cfg.placement);
@@ -1889,24 +1878,24 @@ function updateChips() {
 }
 
 function buildSentence(name, cfg) {
-  const styles  = [...cfg.styles].join(' and ') || 'natural';
-  const place   = cfg.placement || 'centered along the main wall';
+  const place = cfg.placement || '';
 
   switch (cfg.action) {
-    case 'Add':
-      return `Add a ${styles}-style ${name} to the room, positioned ${place}. It must cast a realistic ground shadow, match the room's ambient lighting, and maintain correct perspective scale.`;
-
+    case 'Add': {
+      const posClause = place ? `, positioned ${place}` : ', placed naturally where it fits best in the scene';
+      return `Add the reference ${name} to the room${posClause}. It must cast a realistic ground shadow, match the room's existing lighting and perspective scale, and look physically grounded.`;
+    }
     case 'Replace':
-      return `Replace the existing ${name} in the room with the reference ${name}, keeping it in the exact same location and footprint. Match the ${styles} aesthetic. Preserve all surrounding objects and any foreground overlaps.`;
+      return `Replace the existing ${name} in the room with the reference ${name}. Keep it in the exact same location and footprint as the original. Preserve all surrounding objects and any foreground overlaps.`;
 
     case 'Remove':
-      return `Remove the ${name} from the room entirely. Flawlessly inpaint the exposed area — floor, wall, or background — so it blends seamlessly with the surrounding surfaces, textures, and lighting.`;
+      return `Remove the ${name} from the room entirely. Flawlessly inpaint the exposed floor, wall, or background area so it blends seamlessly with the surrounding surfaces, textures, and lighting.`;
 
     case 'Restyle':
-      return `Restyle the existing ${name} to have a ${styles} aesthetic while keeping it in the same position. Change its materials, finish, and detailing only — do not move, scale, or remove it.`;
+      return `Restyle the existing ${name} in place — change its materials, finish, and detailing to match the reference image. Do not move, scale, or remove it.`;
 
     default:
-      return `Apply changes to the ${name} in a ${styles} style, placed ${place}.`;
+      return `Apply the reference ${name} to the room${place ? ', placed ' + place : ''}.`;
   }
 }
 
@@ -1940,20 +1929,17 @@ document.querySelectorAll('#action-tags .tag').forEach(t => t.addEventListener('
   S.userEditedPrompt = false; rebuildPrompt();
 }));
 
-document.querySelectorAll('#style-tags .tag').forEach(t => t.addEventListener('click', () => {
-  if (!S.activeAssetId) return;
-  t.classList.toggle('active');
-  S.getConfig(S.activeAssetId).styles = new Set(
-    [...document.querySelectorAll('#style-tags .tag.active')].map(x => x.textContent)
-  );
-  S.userEditedPrompt = false; rebuildPrompt();
-}));
-
 document.querySelectorAll('#placement-tags .tag').forEach(t => t.addEventListener('click', () => {
   if (!S.activeAssetId) return;
+  const alreadyActive = t.classList.contains('active');
   document.querySelectorAll('#placement-tags .tag').forEach(x => x.classList.remove('active'));
-  t.classList.add('active');
-  S.getConfig(S.activeAssetId).placement = t.dataset.value;
+  if (!alreadyActive) {
+    t.classList.add('active');
+    S.getConfig(S.activeAssetId).placement = t.dataset.value;
+  } else {
+    // Deselect — no placement preference
+    S.getConfig(S.activeAssetId).placement = '';
+  }
   S.userEditedPrompt = false; rebuildPrompt();
 }));
 
