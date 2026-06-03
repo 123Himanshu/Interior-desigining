@@ -5,3 +5,4 @@ python-dotenv
 python-multipart
 Pillow
 requests
+huggingface_hub>=0.23.0

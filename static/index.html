@@ -3,292 +3,1024 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI Room Visualizer | Editor</title>
+<title>AI Room Visualizer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
-  /* ── Tokens & Base ─────────────────────────────────────────── */
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --canvas: #f9f7f3;
-    --surface-bone: #f3f0e8;
-    --surface-card: #ffffff;
-    --surface-dark: #202020;
-    --surface-deep: #000000;
-    
-    --primary: #ea2804;
-    --primary-deep: #c01f00;
+/* ── Tokens & Base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --canvas:        #f9f7f3;
+  --surface-bone:  #f3f0e8;
+  --surface-card:  #ffffff;
+  --surface-dark:  #202020;
+  --surface-deep:  #000000;
 
-    --ink: #202020;
-    --body: #3a3a3a;
-    --charcoal: #575757;
-    --mute: #646464;
-    --hairline: rgba(32, 32, 32, 0.12);
-    --hairline-strong: #202020;
+  --primary:       #ea2804;
+  --primary-deep:  #c01f00;
+  --primary-soft:  rgba(234,40,4,0.08);
 
-    --rounded-none: 0px;
-    --rounded-xs: 4px;
-    --rounded-sm: 6px;
-    --rounded-md: 10px;
-    --rounded-lg: 16px;
-    --rounded-full: 9999px;
+  --ink:           #202020;
+  --body:          #3a3a3a;
+  --charcoal:      #575757;
+  --mute:          #646464;
+  --hairline:      rgba(32,32,32,0.12);
+  --hairline-strong: #202020;
 
-    --spacing-xs: 4px;
-    --spacing-sm: 8px;
-    --spacing-md: 12px;
-    --spacing-lg: 16px;
-    --spacing-xl: 24px;
-    --spacing-xxl: 32px;
-  }
-  body, html {
-    background: var(--canvas);
-    color: var(--ink);
-    font-family: 'Inter', -apple-system, system-ui, sans-serif;
-    min-height: 100vh; /* Using min-height to fix scroll issues in some views */
-    overflow: hidden;
-    font-size: 16px;
-    line-height: 1.5;
-  }
+  --rounded-xs:    4px;
+  --rounded-sm:    6px;
+  --rounded-md:    10px;
+  --rounded-lg:    16px;
+  --rounded-full:  9999px;
 
-  /* Scrollbar override */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: var(--rounded-full); }
-  ::-webkit-scrollbar-thumb:hover { background: var(--mute); }
+  --sp-xs:4px; --sp-sm:8px; --sp-md:12px;
+  --sp-lg:16px; --sp-xl:24px; --sp-xxl:32px;
+}
+body, html {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  min-height: 100vh;
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.5;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: var(--rounded-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--mute); }
 
-  /* ── Layout ────────────────────────────────────────────────── */
-  .app-container { display: flex; flex-direction: column; height: 100vh; }
-  .top-nav {
-    height: 60px; background: var(--canvas); border-bottom: 1px solid var(--hairline);
-    display: flex; align-items: center; padding: 0 var(--spacing-xl);
-    z-index: 10;
-  }
-  .brand-mark { 
-    font-family: 'Bricolage Grotesque', sans-serif;
-    font-weight: 700; font-size: 20px; letter-spacing: -0.5px; color: var(--ink); margin-right: 32px; 
-  }
-  .nav-links { display: flex; gap: 24px; }
-  .nav-link { color: var(--mute); text-decoration: none; font-size: 14px; font-weight: 600; transition: color 0.2s; }
-  .nav-link:hover { color: var(--ink); }
-  .nav-actions { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+/* ── App Shell ─────────────────────────────────────────────── */
+.app-container { display: flex; flex-direction: column; height: 100vh; }
 
-  .workspace { display: flex; flex: 1; overflow: hidden; }
+/* ── Top Nav ───────────────────────────────────────────────── */
+.top-nav {
+  height: 60px;
+  background: var(--canvas);
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-xl);
+  z-index: 10;
+  flex-shrink: 0;
+}
+.brand-mark {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+  margin-right: auto;
+}
+.brand-mark span { color: var(--primary); }
 
-  /* ── Sidebar (Left) ──────────────────────────────────────── */
-  .sidebar {
-    width: 440px; 
-    background: var(--surface-bone); border-right: 1px solid var(--hairline);
-    display: flex; flex-direction: column; overflow-y: auto; 
-  }
-  .sidebar-header { padding: var(--spacing-xl) var(--spacing-xl) var(--spacing-lg); }
-  .sidebar-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 30px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.0; color: var(--ink); }
-  
-  .step-container { padding: var(--spacing-lg) var(--spacing-xl); border-bottom: 1px solid var(--hairline); transition: opacity 0.3s; }
-  .step-container.disabled { opacity: 0.4; pointer-events: none; }
-  .step-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: var(--spacing-md); }
-  .step-num { color: var(--primary); font-size: 14px; font-weight: 600; }
-  .step-label { font-size: 16px; font-weight: 600; color: var(--ink); }
+/* Header pill nav — center */
+.header-nav {
+  display: flex;
+  gap: 3px;
+  background: var(--surface-bone);
+  padding: 3px;
+  border-radius: var(--rounded-md);
+  border: 1px solid var(--hairline);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.nav-pill {
+  padding: 6px 22px;
+  border-radius: var(--rounded-sm);
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  color: var(--mute);
+}
+.nav-pill.active { background: var(--primary); color: #fff; }
+.nav-pill:not(.active):hover { color: var(--ink); background: var(--surface-card); }
 
-  /* Drop Zones */
-  .drop-zone {
-    border: 1px dashed var(--hairline-strong); background: var(--surface-card); padding: var(--spacing-xxl) var(--spacing-lg);
-    text-align: center; cursor: pointer; position: relative; transition: all 0.2s; 
-    border-radius: var(--rounded-md);
-  }
-  .drop-zone:hover { 
-    border-color: var(--primary); 
-    box-shadow: 0 4px 12px rgba(32,32,32,0.03); 
-  }
-  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-  .drop-text { font-size: 14px; color: var(--body); }
-  .drop-text strong { display: block; color: var(--ink); margin-bottom: 4px; font-weight: 600;}
-  
-  /* Uploaded State inside sidebar */
-  .mini-preview { 
-    display: none; background: var(--surface-card); padding: var(--spacing-md); 
-    border: 1px solid var(--hairline); align-items: center; gap: 12px; 
-    border-radius: var(--rounded-md); margin-top: var(--spacing-md);
-  }
-  .mini-preview.visible { display: flex; }
-  .mini-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: var(--rounded-xs); }
-  .mini-preview-info { flex: 1; }
-  .mini-preview-name { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 2px;}
-  .mini-preview-action { font-size: 12px; color: var(--mute); cursor: pointer; font-weight: 400; text-decoration: underline;}
-  .mini-preview-action:hover { color: var(--primary); }
+.sync-status {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mute);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.2px;
+  min-width: 120px;
+  justify-content: flex-end;
+}
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sync-dot.green  { background: #22c55e; }
+.sync-dot.yellow { background: #f59e0b; animation: pulse-dot 1s infinite; }
+.sync-dot.red    { background: #ef4444; }
+.sync-dot.grey   { background: var(--mute); }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-  /* Directive & Presets */
-  .preset-prompts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .btn-preset {
-    background: var(--canvas); border: 1px solid var(--hairline-strong); color: var(--ink);
-    padding: 6px 12px; border-radius: var(--rounded-full); font-size: 13px; font-weight: 500;
-    cursor: pointer; transition: all 0.2s;
-  }
-  .btn-preset:hover { background: var(--surface-bone); border-color: var(--primary); color: var(--primary); }
-  
-  .prompt-input {
-    width: 100%; height: 100px; background: var(--surface-card); border: 1px solid var(--hairline);
-    color: var(--ink); padding: 12px 20px; font-family: inherit; font-size: 14px; resize: none; margin-top: 12px; outline: none;
-    border-radius: var(--rounded-md); transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  .prompt-input:focus { 
-    border-color: var(--primary); box-shadow: 0 0 0 3px rgba(234, 40, 4, 0.2); 
-  }
+/* ── Screens ───────────────────────────────────────────────── */
+.screen { display: none; flex: 1; overflow: hidden; }
+.screen.active { display: flex; }
 
-  /* Button Sidebar */
-  .sidebar-footer { padding: var(--spacing-xl); margin-top: auto; }
-  .btn-generate {
-    width: 100%; background: var(--primary); color: var(--on-primary); border: none; padding: 12px 24px; height: 44px;
-    font-size: 16px; font-weight: 600; border-radius: var(--rounded-full);
-    cursor: pointer; transition: background 0.2s;
-  }
-  .btn-generate:hover { 
-    background: var(--primary-deep); 
-  }
+/* ══════════════════════════════════════════════════════════════
+   EDITOR SCREEN  — original 2-col sidebar + canvas
+══════════════════════════════════════════════════════════════ */
+#screen-editor { flex-direction: row; }
 
-  /* ── Canvas (Right) ────────────────────────────────────────── */
-  .canvas-area { flex: 1; background: var(--canvas); position: relative; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: hidden; }
-  .empty-state { text-align: center; color: var(--mute); font-size: 18px; }
-  .empty-state svg { width: 64px; height: 64px; margin-bottom: 24px; opacity: 0.3; }
+/* ── Sidebar ───────────────────────────────────────────────── */
+.sidebar {
+  width: 440px;
+  background: var(--surface-bone);
+  border-right: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.sidebar-header { padding: var(--sp-xl) var(--sp-xl) var(--sp-lg); }
+.sidebar-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1.0;
+  color: var(--ink);
+}
 
-  .viewport { display: none; width: 100%; height: 100%; align-items: center; justify-content: center; position: relative; flex-direction: column; }
-  .viewport.visible { display: flex; }
-  
-  .viewport img.main-img { 
-    max-width: 100%; max-height: calc(100vh - 120px); object-fit: contain; 
-    box-shadow: 0 8px 24px rgba(32,32,32,0.08); 
-  }
-  
-  /* UX feature: View Toggles for Scene / Asset */
-  .view-toggles {
-    display: none;
-    background: var(--surface-card);
-    padding: 6px;
-    border-radius: var(--rounded-md);
-    border: 1px solid var(--hairline);
-    margin-bottom: 24px;
-    gap: 4px;
-  }
-  .view-toggles.visible { display: inline-flex; }
-  .btn-toggle {
-    padding: 8px 20px;
-    border-radius: var(--rounded-xs);
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--mute);
-    transition: all 0.2s;
-  }
-  .btn-toggle.active {
-    background: var(--canvas);
-    color: var(--ink);
-    box-shadow: 0 2px 6px rgba(32,32,32,0.06);
-  }
+.step-container {
+  padding: var(--sp-lg) var(--sp-xl);
+  border-bottom: 1px solid var(--hairline);
+  transition: opacity 0.3s;
+}
+.step-container.disabled { opacity: 0.4; pointer-events: none; }
+.step-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: var(--sp-md);
+}
+.step-num { color: var(--primary); font-size: 14px; font-weight: 600; }
+.step-label { font-size: 16px; font-weight: 600; color: var(--ink); }
+.step-badge {
+  margin-left: auto;
+  background: var(--primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--rounded-full);
+  display: none;
+}
 
-  /* Result specific */
-  .result-view { display: none; width: 100%; height: 100%; flex-direction: column; }
-  .result-view.visible { display: flex; }
-  .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-xxl); flex-shrink: 0; }
-  .result-title { 
-    font-family: 'Bricolage Grotesque', sans-serif; font-size: 72px; font-weight: 700; line-height: 1.0; letter-spacing: -1.8px; color: var(--ink); 
-  }
-  .result-actions { display: flex; gap: 12px; align-items: center; }
-  
-  .btn-ghost { 
-    background: var(--surface-card); border: 1px solid var(--hairline-strong); color: var(--ink); padding: 8px 16px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
-    font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; border-radius: var(--rounded-full);
-    transition: all 0.2s;
-  }
-  .btn-ghost:hover { background: var(--surface-bone); }
-  
-  .btn-primary-outline {
-    background: var(--canvas); border: 1px solid var(--primary); color: var(--primary); padding: 8px 16px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
-    font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; border-radius: var(--rounded-full);
-    transition: all 0.2s;
-  }
-  .btn-primary-outline:hover { background: rgba(234, 40, 4, 0.05); }
+/* Drop Zones */
+.drop-zone {
+  border: 1px dashed var(--hairline-strong);
+  background: var(--surface-card);
+  padding: var(--sp-xxl) var(--sp-lg);
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  border-radius: var(--rounded-md);
+}
+.drop-zone:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.drop-text { font-size: 14px; color: var(--body); }
+.drop-text strong { display: block; color: var(--ink); margin-bottom: 4px; font-weight: 600; }
 
-  .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; height: 100%; min-height: 0; }
-  .image-pane { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  .pane-label { font-size: 14px; font-weight: 600; color: var(--charcoal); margin-bottom: 12px; flex-shrink: 0; }
-  
-  .pane-img-wrap { 
-    flex: 1; background: var(--surface-bone); display: flex; align-items: center; justify-content: center; 
-    overflow: hidden; border: 1px solid var(--hairline); min-height: 0;
-    border-radius: var(--rounded-md);
-  }
-  .pane-img-wrap img { 
-    max-width: 100%; max-height: 100%; object-fit: contain; 
-    border-radius: var(--rounded-md);
-  }
+/* Mini preview */
+.mini-preview {
+  display: none;
+  background: var(--surface-card);
+  padding: var(--sp-md);
+  border: 1px solid var(--hairline);
+  align-items: center;
+  gap: 12px;
+  border-radius: var(--rounded-md);
+  margin-top: var(--sp-md);
+}
+.mini-preview.visible { display: flex; }
+.mini-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: var(--rounded-xs); }
+.mini-preview-info { flex: 1; }
+.mini-preview-name { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+.mini-preview-action { font-size: 12px; color: var(--mute); cursor: pointer; text-decoration: underline; }
+.mini-preview-action:hover { color: var(--primary); }
 
-  /* Loading Override */
-  .overlay-loader {
-    position: absolute; inset: 0; background: rgba(249, 247, 243, 0.85); backdrop-filter: blur(4px);
-    display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 20; color: var(--ink);
-  }
-  .overlay-loader.visible { display: flex; }
-  .spinner { border: 3px solid var(--hairline); border-top-color: var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 24px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loader-title { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 30px; letter-spacing: -0.5px; color: var(--ink); margin-bottom: 8px;}
-  .loader-desc { color: var(--body); font-size: 16px; }
+/* Asset mode toggle (Step 2) */
+.asset-toggle {
+  display: flex;
+  background: rgba(32,32,32,0.06);
+  border-radius: var(--rounded-sm);
+  padding: 3px;
+  margin-bottom: var(--sp-md);
+  gap: 2px;
+}
+.asset-toggle-btn {
+  flex: 1;
+  padding: 7px;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--mute);
+  transition: all 0.15s;
+  text-align: center;
+}
+.asset-toggle-btn.active {
+  background: var(--surface-card);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(32,32,32,0.08);
+}
 
-  .error-toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface-dark); color: #fcfcfc; padding: 12px 24px; font-size: 14px; border-radius: var(--rounded-full); font-weight: 500; z-index: 100; transform: translateY(100px); opacity: 0; transition: all 0.3s; box-shadow: 0 8px 24px rgba(32,32,32,0.15); }
-  .error-toast.visible { transform: translateY(0); opacity: 1; }
+/* Editor inline library grid */
+#asset-library-mode { padding-top: 2px; }
+.elib-section { margin-bottom: var(--sp-md); }
+.elib-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+.elib-expand-btn {
+  background: none;
+  border: 1px solid var(--hairline);
+  color: var(--mute);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--rounded-full);
+  cursor: pointer;
+}
+.elib-expand-btn:hover { color: var(--ink); border-color: var(--ink); }
+.elib-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.elib-thumb {
+  aspect-ratio: 1;
+  border-radius: var(--rounded-sm);
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.12s, transform 0.1s;
+  position: relative;
+  background: var(--surface-card);
+}
+.elib-thumb:hover { border-color: var(--hairline-strong); transform: translateY(-1px); }
+.elib-thumb.selected { border-color: var(--primary); }
+.elib-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.elib-check {
+  position: absolute; top: 2px; right: 2px;
+  width: 14px; height: 14px;
+  background: var(--primary);
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+}
+.elib-thumb.selected .elib-check { display: flex; }
+.elib-empty { font-size: 12px; color: var(--mute); text-align: center; padding: var(--sp-xl) 0; line-height: 1.6; }
 
-  /* ── Responsive Mobile ────────────────────────────────────── */
-  @media (max-width: 1024px) {
-    .comparison-grid { grid-template-columns: 1fr; gap: var(--spacing-xl); }
-  }
-  @media (max-width: 768px) {
-    body, html { height: auto; min-height: 100%; overflow-y: auto; }
-    .app-container { height: auto; min-height: 100vh; }
-    .workspace { flex-direction: column; overflow: visible; }
-    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--hairline); }
-    .canvas-area { min-height: 50vh; padding: 24px; }
-    .viewport img.main-img { max-height: 50vh; }
-    .view-toggles { margin-bottom: 16px; }
-    .image-pane { height: auto; }
-    .pane-img-wrap { min-height: 250px; height: auto; padding: 8px; }
-    .result-view { height: auto; flex-direction: column; }
-    .result-header { gap: 12px; flex-wrap: wrap; }
-    .result-title { font-size: 48px; }
-  }
+/* Step 3 — tags + prompt */
+.tag-group { margin-bottom: var(--sp-md); }
+.tag-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 7px;
+}
+.tags-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.tag {
+  background: var(--canvas);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: var(--rounded-full);
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+.tag:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.tag.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+/* Chips row (selected objects) */
+.chips-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: var(--sp-md); min-height: 24px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-bone);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--rounded-sm);
+  padding: 3px 8px 3px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.chip { cursor: pointer; transition: border-color 0.13s, background 0.13s; }
+.chip:hover { border-color: var(--primary); }
+.chip-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.chip-active .chip-x { color: rgba(255,255,255,0.5); }
+.chip-active .chip-x:hover { color: #fff; }
+.chip img { width: 18px; height: 18px; border-radius: 3px; object-fit: cover; }
+.chip-label { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-x { color: var(--mute); cursor: pointer; font-size: 10px; margin-left: 2px; }
+.chip-x:hover { color: var(--primary); }
+.chips-empty { font-size: 12px; color: var(--mute); font-style: italic; }
+
+.directive-for {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  min-height: 14px;
+  margin-bottom: 2px;
+  letter-spacing: 0.1px;
+}
+
+.prompt-input {
+  width: 100%;
+  height: 100px;
+  background: var(--surface-card);
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  margin-top: var(--sp-sm);
+  outline: none;
+  border-radius: var(--rounded-md);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  line-height: 1.5;
+}
+.prompt-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.cost-note {
+  font-size: 11px;
+  color: var(--mute);
+  margin-top: var(--sp-sm);
+}
+
+/* Sidebar footer */
+.sidebar-footer { padding: var(--sp-xl); margin-top: auto; }
+.btn-generate {
+  width: 100%;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  height: 44px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: var(--rounded-full);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-generate:hover { background: var(--primary-deep); }
+
+/* ── Canvas ─────────────────────────────────────────────────── */
+.canvas-area {
+  flex: 1;
+  background: var(--canvas);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+}
+.empty-state { text-align: center; color: var(--mute); font-size: 18px; }
+.empty-state svg { width: 64px; height: 64px; margin-bottom: 24px; opacity: 0.3; }
+
+.viewport {
+  display: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-direction: column;
+}
+.viewport.visible { display: flex; }
+.viewport img.main-img {
+  max-width: 100%;
+  max-height: calc(100vh - 120px);
+  object-fit: contain;
+  box-shadow: 0 8px 24px rgba(32,32,32,0.08);
+  border-radius: var(--rounded-md);
+}
+
+.view-toggles {
+  display: none;
+  background: var(--surface-card);
+  padding: 6px;
+  border-radius: var(--rounded-md);
+  border: 1px solid var(--hairline);
+  margin-bottom: 24px;
+  gap: 4px;
+}
+.view-toggles.visible { display: inline-flex; }
+.btn-toggle {
+  padding: 8px 20px;
+  border-radius: var(--rounded-xs);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mute);
+  transition: all 0.2s;
+}
+.btn-toggle.active {
+  background: var(--canvas);
+  color: var(--ink);
+  box-shadow: 0 2px 6px rgba(32,32,32,0.06);
+}
+
+/* Result view */
+.result-view { display: none; width: 100%; height: 100%; flex-direction: column; }
+.result-view.visible { display: flex; }
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-xxl);
+  flex-shrink: 0;
+}
+.result-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1.0;
+  letter-spacing: -1.8px;
+  color: var(--ink);
+}
+.result-actions { display: flex; gap: 12px; align-items: center; }
+.btn-ghost {
+  background: var(--surface-card);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  padding: 8px 16px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: var(--rounded-full);
+  transition: all 0.2s;
+}
+.btn-ghost:hover { background: var(--surface-bone); }
+.btn-export { border-color: var(--primary); color: var(--primary); }
+.btn-export:hover { background: var(--primary-soft); }
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  height: 100%;
+  min-height: 0;
+  transition: grid-template-columns 0.2s;
+}
+.comparison-grid.three-col { grid-template-columns: 1fr 1fr 1fr; }
+.image-pane { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.pane-label { font-size: 14px; font-weight: 600; color: var(--charcoal); margin-bottom: 12px; flex-shrink: 0; }
+.pane-label-result { color: var(--primary); }
+.pane-img-wrap {
+  flex: 1;
+  background: var(--surface-bone);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-md);
+  min-height: 0;
+}
+.pane-img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--rounded-md); }
+
+/* Loader */
+.overlay-loader {
+  position: absolute; inset: 0;
+  background: rgba(249,247,243,0.85);
+  backdrop-filter: blur(4px);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  color: var(--ink);
+}
+.overlay-loader.visible { display: flex; }
+.spinner {
+  border: 3px solid var(--hairline);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  width: 40px; height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 24px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loader-title { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 30px; letter-spacing: -0.5px; color: var(--ink); margin-bottom: 8px; }
+.loader-desc { color: var(--body); font-size: 16px; }
+
+/* ══════════════════════════════════════════════════════════════
+   LIBRARY SCREEN
+══════════════════════════════════════════════════════════════ */
+#screen-library { flex-direction: column; overflow: hidden; }
+
+#library-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-xl) var(--sp-xxl) 120px;
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.lib-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--sp-xl);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.lib-topbar-left { display: flex; flex-direction: column; gap: 3px; }
+.lib-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+}
+.lib-subtitle { font-size: 12px; color: var(--mute); }
+.lib-topbar-right { display: flex; gap: 10px; align-items: center; }
+
+.btn-secondary {
+  background: var(--surface-card);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: var(--rounded-full);
+  cursor: pointer;
+  transition: all 0.15s;
+  height: 38px;
+}
+.btn-secondary:hover { background: var(--surface-bone); }
+
+.btn-add-asset {
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 20px;
+  border-radius: var(--rounded-full);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-add-asset:hover { background: var(--primary-deep); }
+
+/* Tag info strip */
+.tag-info-strip {
+  background: var(--surface-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-md);
+  padding: var(--sp-md) var(--sp-lg);
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  font-size: 12px;
+  color: var(--body);
+  line-height: 1.55;
+  margin-bottom: var(--sp-xl);
+}
+.rtag-ex { background: #ecf7ec; color: #2a6e2a; border-radius: 3px; padding: 0 5px; font-weight: 600; font-size: 11px; }
+.otag-ex { background: #ecebf7; color: #2a2a6e; border-radius: 3px; padding: 0 5px; font-weight: 600; font-size: 11px; }
+
+/* Search bar */
+.lib-search-bar { display: flex; gap: 8px; margin-bottom: var(--sp-lg); align-items: center; }
+.lib-search-input {
+  flex: 1;
+  background: var(--surface-card);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  padding: 9px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: var(--rounded-full);
+  outline: none;
+  transition: border-color 0.18s;
+}
+.lib-search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.lib-search-close { background: none; border: none; color: var(--mute); font-size: 18px; cursor: pointer; padding: 4px; }
+
+/* Library sections */
+.lib-section { margin-bottom: var(--sp-xxl); }
+.lib-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: var(--sp-md);
+}
+.lib-section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--charcoal);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.lib-section-count {
+  background: var(--surface-bone);
+  color: var(--mute);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+.lib-expand-btn {
+  background: none;
+  border: 1px solid var(--hairline);
+  color: var(--mute);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 13px;
+  border-radius: var(--rounded-full);
+  cursor: pointer;
+  transition: all 0.13s;
+}
+.lib-expand-btn:hover { border-color: var(--ink); color: var(--ink); }
+
+.lib-thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.lib-card {
+  border-radius: var(--rounded-md);
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  background: var(--surface-card);
+  transition: border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+  position: relative;
+  box-shadow: 0 1px 4px rgba(32,32,32,0.06);
+}
+.lib-card:hover { border-color: var(--hairline-strong); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(32,32,32,0.10); }
+.lib-card.selected { border-color: var(--primary); }
+.lib-card.selected .lib-check { display: flex; }
+.lib-check {
+  position: absolute; top: 7px; right: 7px;
+  width: 20px; height: 20px;
+  background: var(--primary);
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+}
+.lib-del-btn {
+  position: absolute; top: 7px; left: 7px;
+  width: 20px; height: 20px;
+  background: rgba(32,32,32,0.65);
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #fff;
+  cursor: pointer;
+  border: none;
+}
+.lib-del-btn:hover { background: rgba(234,40,4,0.85); }
+.lib-card:hover .lib-del-btn { display: flex; }
+.lib-card-img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.lib-card-info { padding: 9px 11px 11px; }
+.lib-card-name { font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
+.lib-card-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.lib-tag { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px; }
+.lib-tag.room { background: #ecf7ec; color: #2a6e2a; }
+.lib-tag.obj  { background: #ecebf7; color: #2a2a6e; }
+
+/* Library empty */
+.lib-empty { text-align: center; padding: 80px 0; }
+.lib-empty-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+.lib-empty-sub { font-size: 13px; color: var(--mute); }
+
+/* Floating selection bar */
+.float-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-dark);
+  color: #fff;
+  border-radius: var(--rounded-lg);
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 40px rgba(32,32,32,0.28);
+  z-index: 100;
+  min-width: 460px;
+  max-width: calc(100vw - 40px);
+}
+.float-bar.hidden { display: none; }
+.float-chips { display: flex; gap: 6px; flex: 1; overflow: hidden; min-width: 0; }
+.float-chip {
+  background: rgba(255,255,255,0.1);
+  border-radius: var(--rounded-sm);
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.float-chip img { width: 18px; height: 18px; border-radius: 3px; object-fit: cover; }
+.float-count { font-size: 11px; color: rgba(255,255,255,0.45); white-space: nowrap; }
+.float-clear { background: none; border: none; color: rgba(255,255,255,0.4); font-size: 11px; cursor: pointer; transition: color 0.12s; }
+.float-clear:hover { color: #fff; }
+.btn-float-generate {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: var(--rounded-full);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.btn-float-generate:hover { background: var(--primary-deep); }
+.float-badge { background: rgba(255,255,255,0.2); border-radius: var(--rounded-full); padding: 1px 7px; font-size: 11px; font-weight: 800; }
+
+/* ── Tag Modal ─────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(20,20,20,0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: var(--sp-lg);
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  background: var(--surface-card);
+  border-radius: 18px;
+  width: 480px;
+  max-width: 100%;
+  box-shadow: 0 32px 80px rgba(20,20,20,0.18), 0 0 0 1px rgba(32,32,32,0.06);
+  animation: modal-in 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  overflow: hidden;
+}
+@keyframes modal-in { from { opacity:0; transform:scale(0.94) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
+
+/* Modal layout: left image, right form — side by side */
+.modal-inner {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  min-height: 360px;
+}
+.modal-img-col {
+  background: var(--surface-bone);
+  border-right: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-lg);
+}
+.modal-img-col img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--rounded-sm);
+  max-height: 260px;
+}
+.modal-form-col {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-xl);
+}
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--sp-lg);
+  gap: 12px;
+}
+.modal-title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+.modal-subtitle {
+  font-size: 11px;
+  color: var(--mute);
+  margin-top: 3px;
+  font-weight: 400;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--mute);
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: color 0.12s;
+}
+.modal-close:hover { color: var(--ink); }
+
+.modal-fields { display: flex; flex-direction: column; gap: var(--sp-md); flex: 1; }
+.modal-field { display: flex; flex-direction: column; gap: 5px; }
+.modal-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.modal-select, .modal-input {
+  width: 100%;
+  background: var(--surface-bone);
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+  padding: 9px 11px;
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: var(--rounded-sm);
+  outline: none;
+  transition: border-color 0.16s, box-shadow 0.16s, background 0.16s;
+  appearance: none;
+  line-height: 1.4;
+}
+.modal-select:focus, .modal-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  background: #fff;
+}
+.modal-or {
+  font-size: 10px;
+  color: var(--mute);
+  text-align: center;
+  margin: 2px 0;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: var(--sp-lg);
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--hairline);
+}
+.btn-modal-cancel {
+  flex: 1;
+  background: var(--surface-bone);
+  border: 1px solid var(--hairline);
+  color: var(--charcoal);
+  padding: 10px;
+  border-radius: var(--rounded-full);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.13s;
+}
+.btn-modal-cancel:hover { background: var(--hairline); }
+.btn-modal-save {
+  flex: 2;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: var(--rounded-full);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition: background 0.15s;
+  letter-spacing: 0.1px;
+}
+.btn-modal-save:hover { background: var(--primary-deep); }
+
+/* ── Toast ─────────────────────────────────────────────────── */
+.error-toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface-dark); color: #fcfcfc;
+  padding: 12px 24px; font-size: 14px;
+  border-radius: var(--rounded-full);
+  font-weight: 500; z-index: 300;
+  transform: translateY(100px); opacity: 0;
+  transition: all 0.3s;
+  box-shadow: 0 8px 24px rgba(32,32,32,0.15);
+  pointer-events: none;
+}
+.error-toast.visible { transform: translateY(0); opacity: 1; }
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 1024px) { .comparison-grid { grid-template-columns: 1fr; gap: var(--sp-xl); } }
+@media (max-width: 768px) {
+  body, html { height: auto; min-height: 100%; overflow-y: auto; }
+  .app-container { height: auto; min-height: 100vh; }
+  #screen-editor { flex-direction: column; overflow: visible; }
+  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--hairline); }
+  .canvas-area { min-height: 50vh; padding: 24px; }
+  .viewport img.main-img { max-height: 50vh; }
+  .result-view { height: auto; flex-direction: column; }
+  .result-header { gap: 12px; flex-wrap: wrap; }
+  .result-title { font-size: 48px; }
+  .float-bar { min-width: unset; width: calc(100vw - 32px); }
+}
 </style>
 </head>
 <body>
-
 <div class="app-container">
+
+  <!-- ══ HEADER ══ -->
   <nav class="top-nav">
-    <div class="brand-mark">VISUALIZER</div>
-    <div class="nav-links">
-      <a href="#" class="nav-link">Explore</a>
-      <a href="#" class="nav-link">Pricing</a>
-      <a href="#" class="nav-link">Docs</a>
+    <div class="brand-mark">ROOM<span>AI</span></div>
+    <div class="header-nav">
+      <button class="nav-pill active" data-screen="editor">Editor</button>
+      <button class="nav-pill" data-screen="library">Library</button>
     </div>
-    <div class="nav-actions">
-    </div>
+    <div class="sync-status" id="syncStatus"></div>
   </nav>
 
-  <div class="workspace">
-    <!-- SIDEBAR -->
+  <!-- ══ EDITOR SCREEN ══ -->
+  <div id="screen-editor" class="screen active">
+
+    <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-header">
         <h2 class="sidebar-title">Pipeline Configuration</h2>
       </div>
 
-      <!-- Step 1 -->
+      <!-- Step 1: Room image -->
       <div class="step-container" id="step1">
         <div class="step-header">
-          <span class="step-num">01 /</span><span class="step-label">Environment Architecture</span>
+          <span class="step-num">01 /</span>
+          <span class="step-label">Environment Architecture</span>
         </div>
         <div class="drop-zone" id="roomZone">
           <input type="file" id="roomInput" accept="image/*" />
-          <div class="drop-text"><strong>UPLOAD SCENE</strong> Drop main room photo</div>
+          <div class="drop-text"><strong>UPLOAD SCENE</strong>Drop main room photo here</div>
         </div>
         <div class="mini-preview" id="roomMini">
-          <img id="roomThumb" src="" />
+          <img id="roomThumb" src="" alt="" />
           <div class="mini-preview-info">
             <div class="mini-preview-name">Base Layer Active</div>
             <div class="mini-preview-action" id="roomRemove">Replace Scene</div>
@@ -296,37 +1028,95 @@
         </div>
       </div>
 
-      <!-- Step 2 -->
+      <!-- Step 2: Subject assets -->
       <div class="step-container disabled" id="step2">
         <div class="step-header">
-          <span class="step-num">02 /</span><span class="step-label">Subject Asset (Optional)</span>
+          <span class="step-num">02 /</span>
+          <span class="step-label">Subject Asset</span>
+          <span class="step-badge" id="assetBadge"></span>
         </div>
-        <div class="drop-zone" id="objZone">
-          <input type="file" id="objInput" accept="image/*" />
-          <div class="drop-text"><strong>UPLOAD OBJECT</strong> Drop reference furniture (Optional)</div>
+
+        <div class="asset-toggle">
+          <button class="asset-toggle-btn active" data-mode="upload">Upload File</button>
+          <button class="asset-toggle-btn" data-mode="library">From Library</button>
         </div>
-        <div class="mini-preview" id="objMini">
-          <img id="objThumb" src="" />
-          <div class="mini-preview-info">
-            <div class="mini-preview-name">Asset Attached</div>
-            <div class="mini-preview-action" id="objRemove">Remove Asset</div>
+
+        <!-- Upload mode -->
+        <div id="asset-upload-mode">
+          <div class="drop-zone" id="objZone">
+            <input type="file" id="objInput" accept="image/*" />
+            <div class="drop-text"><strong>UPLOAD OBJECT</strong>Drop reference furniture (optional)</div>
           </div>
+          <div class="mini-preview" id="objMini">
+            <img id="objThumb" src="" alt="" />
+            <div class="mini-preview-info">
+              <div class="mini-preview-name">Asset Attached</div>
+              <div class="mini-preview-action" id="objRemove">Remove Asset</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Library mode -->
+        <div id="asset-library-mode" style="display:none">
+          <div id="editor-lib-grid"></div>
         </div>
       </div>
 
-      <!-- Step 3 -->
+      <!-- Step 3: Prompt -->
       <div class="step-container disabled" id="step3">
         <div class="step-header">
-          <span class="step-num">03 /</span><span class="step-label">Editorial Directive</span>
+          <span class="step-num">03 /</span>
+          <span class="step-label">Editorial Directive</span>
         </div>
-        <div class="preset-prompts" id="presetPrompts">
-          <button class="btn-preset" data-prompt="Replace the existing center table with the reference asset, ensuring lighting and shadow accurately follow the room's main light source.">Table</button>
-          <button class="btn-preset" data-prompt="Replace the existing sofa with the referenced sofa, maintaining the original location and preserving all overlaps.">Sofa</button>
-          <button class="btn-preset" data-prompt="Change the curtains to the referenced material and style. Ensure natural draping, folding, and realistic light transmission.">Curtains</button>
-          <button class="btn-preset" data-prompt="Add the referenced item naturally to the center of the room, adhering to the room's overarching vanishing points.">Add Item</button>
-          <button class="btn-preset" data-prompt="Remove the selected furniture. Flawlessly synthesize and inpaint the newly exposed background flooring and walls to match the surroundings.">Remove</button>
+
+        <!-- Selected objects chips -->
+        <div class="chips-row" id="selected-chips">
+          <span class="chips-empty">No objects selected</span>
         </div>
-        <textarea class="prompt-input" id="promptInput" placeholder="Select a preset above, or describe integration. E.g. 'Replace the center table...'"></textarea>
+
+        <!-- Active asset indicator -->
+        <div class="directive-for" id="directive-for-label"></div>
+
+        <!-- Action tags -->
+        <div class="tag-group">
+          <div class="tag-group-label">Action</div>
+          <div class="tags-row" id="action-tags">
+            <button class="tag active" data-group="action">Add</button>
+            <button class="tag" data-group="action">Replace</button>
+            <button class="tag" data-group="action">Remove</button>
+            <button class="tag" data-group="action">Restyle</button>
+          </div>
+        </div>
+
+        <!-- Style tags (hidden for Remove) -->
+        <div class="tag-group" id="group-style">
+          <div class="tag-group-label">Style</div>
+          <div class="tags-row" id="style-tags">
+            <button class="tag" data-group="style">Modern</button>
+            <button class="tag active" data-group="style">Minimalist</button>
+            <button class="tag" data-group="style">Scandinavian</button>
+            <button class="tag" data-group="style">Industrial</button>
+            <button class="tag" data-group="style">Boho</button>
+            <button class="tag" data-group="style">Luxury</button>
+            <button class="tag" data-group="style">Japandi</button>
+            <button class="tag" data-group="style">Coastal</button>
+          </div>
+        </div>
+
+        <!-- Placement tags (hidden for Remove and Restyle) -->
+        <div class="tag-group" id="group-placement">
+          <div class="tag-group-label">Placement</div>
+          <div class="tags-row" id="placement-tags">
+            <button class="tag" data-group="placement" data-value="in the left corner of the room">Left corner</button>
+            <button class="tag active" data-group="placement" data-value="centered along the main wall">Center wall</button>
+            <button class="tag" data-group="placement" data-value="in the right corner of the room">Right corner</button>
+            <button class="tag" data-group="placement" data-value="in the foreground near the viewer">Foreground</button>
+            <button class="tag" data-group="placement" data-value="against the back wall in the background">Background</button>
+          </div>
+        </div>
+
+        <!-- Prompt textarea -->
+        <textarea class="prompt-input" id="promptInput" placeholder="Select tags above, or type a custom directive…"></textarea>
       </div>
 
       <div class="sidebar-footer">
@@ -334,229 +1124,964 @@
       </div>
     </aside>
 
-    <!-- MAIN CANVAS -->
+    <!-- Canvas -->
     <main class="canvas-area">
-      <!-- Empty State -->
       <div class="empty-state" id="emptyState">
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-        <p>Awaiting environment upload to initialize workspace.</p>
+        <p>Awaiting environment upload to initialise workspace.</p>
       </div>
 
-      <!-- Viewport (Shows original while prepping) -->
       <div class="viewport" id="viewport">
         <div class="view-toggles" id="viewToggles">
           <button id="btnViewScene" class="btn-toggle active">Environment</button>
           <button id="btnViewAsset" class="btn-toggle">Reference Asset</button>
         </div>
-        
-        <img id="canvasMainImg" class="main-img" src="" alt="Active Scene" />
-        <img id="canvasAssetImg" class="main-img" src="" alt="Reference Subject" style="display: none;" />
+        <img id="canvasMainImg" class="main-img" src="" alt="Scene" />
+        <img id="canvasAssetImg" class="main-img" src="" alt="Asset" style="display:none" />
       </div>
 
-      <!-- Result Split View -->
       <div class="result-view" id="resultView">
         <div class="result-header">
           <div class="result-title">Render Complete</div>
           <div class="result-actions">
+            <button class="btn-ghost" id="viewOriginalBtn" style="display:none">View Original</button>
+            <button class="btn-ghost" id="clearOriginalBtn" style="display:none" title="Forget stored original">Clear Original</button>
             <button class="btn-ghost" id="refineBtn">Iterate Layer</button>
-            <a class="btn-ghost" id="downloadBtn" href="#" style="border-color: var(--primary); color: var(--primary);">Export</a>
+            <a class="btn-ghost btn-export" id="downloadBtn" href="#" download="synthesis-output.png">Export</a>
           </div>
         </div>
-        <div class="comparison-grid">
-          <div class="image-pane">
-            <div class="pane-label">Archive (Source)</div>
-            <div class="pane-img-wrap"><img id="beforeImg" src="" /></div>
+        <div class="comparison-grid" id="comparisonGrid">
+          <div class="image-pane" id="paneOriginal" style="display:none">
+            <div class="pane-label">Original Upload</div>
+            <div class="pane-img-wrap"><img id="originalImg" src="" alt="Original" /></div>
           </div>
           <div class="image-pane">
-            <div class="pane-label" style="color: var(--primary);">Synthesis (Output)</div>
-            <div class="pane-img-wrap"><img id="afterImg" src="" /></div>
+            <div class="pane-label">Source (this iteration)</div>
+            <div class="pane-img-wrap"><img id="beforeImg" src="" alt="Before" /></div>
+          </div>
+          <div class="image-pane">
+            <div class="pane-label pane-label-result">Synthesis (Output)</div>
+            <div class="pane-img-wrap"><img id="afterImg" src="" alt="After" /></div>
           </div>
         </div>
       </div>
 
-      <!-- Loading Overlay -->
       <div class="overlay-loader" id="loader">
         <div class="spinner"></div>
-        <div style="font-weight: 600; letter-spacing: 1px; font-size: 13px; text-transform: uppercase;">Synthesizing Scene...</div>
-        <div style="margin-top: 8px; color: var(--body); font-size: 11px;">Applying photorealistic constraints. Expected runtime: 15s.</div>
+        <div class="loader-title">Synthesizing Scene…</div>
+        <div class="loader-desc">Applying photorealistic constraints. Expected: 15–30s</div>
       </div>
     </main>
+
+  </div><!-- /screen-editor -->
+
+  <!-- ══ LIBRARY SCREEN ══ -->
+  <div id="screen-library" class="screen">
+    <div id="library-body">
+
+      <div class="lib-topbar">
+        <div class="lib-topbar-left">
+          <div class="lib-title">Asset Library</div>
+          <div class="lib-subtitle">Tag and organise reference objects · select up to 5 · click Generate to continue</div>
+        </div>
+        <div class="lib-topbar-right">
+          <button class="btn-secondary" id="libSearchBtn">Search</button>
+          <button class="btn-add-asset" id="libAddBtn">
+            <input type="file" id="libFileInput" accept="image/*" style="display:none" />
+            Add Asset
+          </button>
+        </div>
+      </div>
+
+      <div class="lib-search-bar" style="display:none" id="libSearchBar">
+        <input type="text" id="libSearchInput" class="lib-search-input" placeholder="Search by name or tag…" />
+        <button class="lib-search-close" id="libSearchClose">✕</button>
+      </div>
+
+      <div class="tag-info-strip">
+        <div>
+          <strong>Two tags per asset:</strong>
+          <span class="rtag-ex">Room type</span> — where it belongs (e.g. Bedroom, Kitchen) &nbsp;·&nbsp;
+          <span class="otag-ex">Object type</span> — what it is (e.g. Sofa, Lamp). Custom tags are saved and reused.
+        </div>
+      </div>
+
+      <div id="library-grid-container"></div>
+      <div id="library-empty" class="lib-empty" style="display:none">
+        <div class="lib-empty-title">No assets yet</div>
+        <div class="lib-empty-sub">Click "Add Asset" to upload your first reference image.</div>
+      </div>
+
+    </div>
+
+    <!-- Floating bar -->
+    <div class="float-bar hidden" id="floatBar">
+      <div class="float-chips" id="floatChips"></div>
+      <div class="float-count" id="floatCount">0 / 5</div>
+      <button class="float-clear" id="floatClear">✕ Clear</button>
+      <button class="btn-float-generate" id="libGenerateBtn">
+        Generate
+        <span class="float-badge" id="floatBadge">0</span>
+      </button>
+    </div>
+  </div><!-- /screen-library -->
+
+</div><!-- /app-container -->
+
+<!-- ══ TAG MODAL ══ -->
+<div class="modal-overlay hidden" id="tagModal">
+  <div class="modal">
+    <div class="modal-inner">
+
+      <!-- Left: image preview -->
+      <div class="modal-img-col">
+        <img id="modalPreviewImg" src="" alt="" />
+      </div>
+
+      <!-- Right: form -->
+      <div class="modal-form-col">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title">Tag this asset</div>
+            <div class="modal-subtitle">Add a name and two tags to organise it in your library.</div>
+          </div>
+          <button class="modal-close" id="modalClose">✕</button>
+        </div>
+
+        <div class="modal-fields">
+          <div class="modal-field">
+            <label class="modal-label">Asset name</label>
+            <input type="text" id="modalName" class="modal-input" placeholder="e.g. Modern Sofa" />
+          </div>
+
+          <div class="modal-field">
+            <label class="modal-label">Room type</label>
+            <select id="modalRoomSelect" class="modal-select"></select>
+            <div class="modal-or">or</div>
+            <input type="text" id="modalRoomCustom" class="modal-input" placeholder="Custom room tag" />
+          </div>
+
+          <div class="modal-field">
+            <label class="modal-label">Object type</label>
+            <select id="modalObjSelect" class="modal-select"></select>
+            <div class="modal-or">or</div>
+            <input type="text" id="modalObjCustom" class="modal-input" placeholder="Custom object tag" />
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-modal-cancel" id="modalCancel">Cancel</button>
+          <button class="btn-modal-save" id="modalSave">Save to Library</button>
+        </div>
+      </div>
+
+    </div>
   </div>
-  
-  <div class="error-toast" id="errorToast"></div>
 </div>
 
-<script>
-const $ = id => document.getElementById(id);
-let baseBlob = null, baseURL = null;
-let objBlob = null, objURL = null; // Store obj URL for picture-in-picture
+<div class="error-toast" id="errorToast"></div>
 
-function showToast(msg) {
-  $('errorToast').textContent = msg;
-  $('errorToast').classList.add('visible');
-  setTimeout(() => $('errorToast').classList.remove('visible'), 4000);
+<script>
+'use strict';
+
+/* ── LibraryStore ─────────────────────────────────────────── */
+const LibraryStore = {
+  ASSETS_KEY: 'roomai_assets',
+  RTAGS_KEY:  'roomai_custom_room_tags',
+  OTAGS_KEY:  'roomai_custom_obj_tags',
+  PRESET_ROOM: ['Living Room','Bedroom','Kitchen','Bathroom','Dining Room','Office','Kids Room'],
+  PRESET_OBJ:  ['Sofa','Chair','Bed frame','Table','Lamp','Curtain','Rug','Mirror','Plant','Decor','Storage'],
+
+  hfEnabled: false,   // set after /health check
+  _syncing:  false,
+
+  _read(k)    { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } },
+  _writeLocal(k,v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); }
+    catch { showToast('Local storage full — assets may not persist.'); }
+  },
+
+  getAssets() { return this._read(this.ASSETS_KEY); },
+
+  _setAssets(arr) {
+    this._writeLocal(this.ASSETS_KEY, arr);
+  },
+
+  // Push full asset list to HF (debounced — max 1 request per 2s)
+  _pushTimer: null,
+  _pushToHF() {
+    if (!this.hfEnabled) return;
+    clearTimeout(this._pushTimer);
+    this._pushTimer = setTimeout(async () => {
+      if (this._syncing) return;
+      this._syncing = true;
+      setSyncStatus('saving');
+      try {
+        const res = await fetch('/library', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assets: this.getAssets() }),
+        });
+        if (!res.ok) throw new Error('save failed');
+        setSyncStatus('saved');
+      } catch {
+        setSyncStatus('error');
+      } finally {
+        this._syncing = false;
+      }
+    }, 1500);
+  },
+
+  saveAsset(a) {
+    const arr = this.getAssets();
+    arr.push(a);
+    this._setAssets(arr);
+    this._pushToHF();
+  },
+
+  deleteAsset(id) {
+    this._setAssets(this.getAssets().filter(a => a.id !== id));
+    this._pushToHF();
+  },
+
+  getCustomRoomTags(){ return this._read(this.RTAGS_KEY); },
+  getCustomObjTags() { return this._read(this.OTAGS_KEY); },
+  addCustomRoomTag(t){ if(!t) return; const a=this.getCustomRoomTags(); if(!a.includes(t)){a.push(t);this._writeLocal(this.RTAGS_KEY,a);} },
+  addCustomObjTag(t) { if(!t) return; const a=this.getCustomObjTags();  if(!a.includes(t)){a.push(t);this._writeLocal(this.OTAGS_KEY,a);} },
+  allRoomTags(){ return [...this.PRESET_ROOM, ...this.getCustomRoomTags()]; },
+  allObjTags() { return [...this.PRESET_OBJ,  ...this.getCustomObjTags()];  },
+
+  groupByRoom(q=''){
+    const lq = q.toLowerCase();
+    const assets = this.getAssets().filter(a =>
+      !lq || a.name.toLowerCase().includes(lq) ||
+             a.roomTag.toLowerCase().includes(lq) ||
+             a.objectTag.toLowerCase().includes(lq)
+    );
+    const map = new Map();
+    for (const a of assets) {
+      const k = a.roomTag || 'Untagged';
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(a);
+    }
+    return map;
+  },
+
+  // Load from HF on startup — merges with localStorage
+  async initFromHF() {
+    setSyncStatus('loading');
+    try {
+      const res = await fetch('/library');
+      const json = await res.json();
+      this.hfEnabled = json.enabled;
+      if (!json.enabled) { setSyncStatus('local'); return; }
+
+      // Merge: HF is source of truth. Put HF assets into localStorage.
+      const remoteIds  = new Set(json.assets.map(a => a.id));
+      const localOnly  = this.getAssets().filter(a => !remoteIds.has(a.id));
+      const merged     = [...json.assets, ...localOnly];
+      this._setAssets(merged);
+
+      // If localOnly had new items, push merged back up
+      if (localOnly.length > 0) this._pushToHF();
+
+      setSyncStatus('synced');
+    } catch {
+      setSyncStatus('local');
+    }
+  },
+};
+
+/* ── App State ────────────────────────────────────────────── */
+const ORIGINAL_KEY = 'roomai_original_scene';
+
+const S = {
+  libSelectedIds:    new Set(),
+  editorSelectedIds: new Set(),
+  assetMode:         'upload',
+  baseBlob: null, baseURL: null,
+  uploadedObjBlob: null, uploadedObjURL: null,
+  userEditedPrompt:  false,
+  // per-asset tag config — keyed by asset id
+  assetConfigs:      new Map(),  // id -> { action, styles: Set, placement }
+  activeAssetId:     null,       // which chip is currently focused
+  libSearchQuery:    '',
+  libExpanded:       new Map(),
+  elibExpanded:      new Map(),
+  getLibSelected()    { return LibraryStore.getAssets().filter(a => this.libSelectedIds.has(a.id)); },
+  getEditorSelected() { return LibraryStore.getAssets().filter(a => this.editorSelectedIds.has(a.id)); },
+  getConfig(id) {
+    if (!this.assetConfigs.has(id)) {
+      this.assetConfigs.set(id, { action: 'Add', styles: new Set(['Minimalist']), placement: 'centered along the main wall' });
+    }
+    return this.assetConfigs.get(id);
+  },
+  removeConfig(id) { this.assetConfigs.delete(id); },
+};
+
+function getOriginalScene() {
+  try { return localStorage.getItem(ORIGINAL_KEY) || null; } catch { return null; }
+}
+function saveOriginalScene(dataUrl) {
+  try { localStorage.setItem(ORIGINAL_KEY, dataUrl); } catch { /* storage full — skip silently */ }
+}
+function clearOriginalScene() {
+  try { localStorage.removeItem(ORIGINAL_KEY); } catch {}
+}
+
+/* ── Utils ────────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+
+function showToast(msg, ms=3500) {
+  const el = $('errorToast');
+  el.textContent = msg;
+  el.classList.add('visible');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('visible'), ms);
+}
+
+function uid() { return Math.random().toString(36).slice(2,9) + Date.now().toString(36); }
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function dataUrlToBlob(url) {
-  const parts = url.split(",");
-  const mime = parts[0].match(/:(.*?);/)[1];
-  const bin = atob(parts[1]);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  return new Blob([arr], { type: mime });
+  const [h,d] = url.split(',');
+  const mime = h.match(/:(.*?);/)[1];
+  const bin  = atob(d);
+  const arr  = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return new Blob([arr],{type:mime});
 }
 
-function updateCanvasState() {
-  if ($('resultView').classList.contains('visible')) return;
-  
-  // Show base environment
-  if (baseURL) {
-    $('emptyState').style.display = 'none';
-    $('canvasMainImg').src = baseURL;
-    $('viewport').classList.add('visible');
-  } else {
-    $('emptyState').style.display = 'block';
-    $('viewport').classList.remove('visible');
-  }
+function readFile(file) {
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload  = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
 
-  // Feature: Toggle buttons for Asset / Scene
-  if (objURL && baseURL) {
-    $('canvasAssetImg').src = objURL;
-    $('viewToggles').classList.add('visible');
-  } else {
-    $('viewToggles').classList.remove('visible');
-    // Default back to scene view
-    $('btnViewScene').click();
+/* ── Screen switch ────────────────────────────────────────── */
+function switchScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(`screen-${name}`).classList.add('active');
+  document.querySelectorAll('.nav-pill').forEach(p => p.classList.toggle('active', p.dataset.screen === name));
+  if (name === 'library') renderLibrary();
+}
+document.querySelectorAll('.nav-pill').forEach(b => b.addEventListener('click', () => switchScreen(b.dataset.screen)));
+
+/* ── Tag Modal ────────────────────────────────────────────── */
+let _pendingDataUrl = null;
+
+function populateSelects() {
+  function fill(id, tags) {
+    const s = $(id);
+    s.innerHTML = '<option value="">— choose or type below —</option>';
+    tags.forEach(t => s.insertAdjacentHTML('beforeend', `<option value="${escHtml(t)}">${escHtml(t)}</option>`));
+  }
+  fill('modalRoomSelect', LibraryStore.allRoomTags());
+  fill('modalObjSelect',  LibraryStore.allObjTags());
+}
+
+function openTagModal(dataUrl) {
+  _pendingDataUrl = dataUrl;
+  $('modalPreviewImg').src = dataUrl;
+  $('modalName').value = $('modalRoomCustom').value = $('modalObjCustom').value = '';
+  populateSelects();
+  $('tagModal').classList.remove('hidden');
+  setTimeout(() => $('modalName').focus(), 60);
+}
+
+function closeTagModal() { $('tagModal').classList.add('hidden'); _pendingDataUrl = null; }
+
+function saveModal() {
+  const name    = $('modalName').value.trim();
+  const roomTag = $('modalRoomCustom').value.trim() || $('modalRoomSelect').value || 'Untagged';
+  const objTag  = $('modalObjCustom').value.trim()  || $('modalObjSelect').value  || 'Item';
+  if (!name) { showToast('Please enter an asset name.'); $('modalName').focus(); return; }
+  if (!_pendingDataUrl) return;
+  if ($('modalRoomCustom').value.trim()) LibraryStore.addCustomRoomTag(roomTag);
+  if ($('modalObjCustom').value.trim())  LibraryStore.addCustomObjTag(objTag);
+  LibraryStore.saveAsset({ id: uid(), name, dataUrl: _pendingDataUrl, roomTag, objectTag: objTag, createdAt: Date.now() });
+  closeTagModal();
+  renderLibrary();
+  renderEditorLibraryGrid();
+  showToast(`"${name}" saved to Library.`);
+}
+
+$('modalClose').addEventListener('click', closeTagModal);
+$('modalCancel').addEventListener('click', closeTagModal);
+$('modalSave').addEventListener('click', saveModal);
+$('tagModal').addEventListener('click', e => { if (e.target === $('tagModal')) closeTagModal(); });
+$('modalName').addEventListener('keydown', e => { if (e.key === 'Enter') saveModal(); });
+
+$('libAddBtn').addEventListener('click', () => $('libFileInput').click());
+$('libFileInput').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f || !f.type.startsWith('image/')) return;
+  openTagModal(await readFile(f));
+  e.target.value = '';
+});
+
+/* ── Library Rendering ────────────────────────────────────── */
+function renderLibrary() {
+  const container = $('library-grid-container');
+  const emptyEl   = $('library-empty');
+  const grouped   = LibraryStore.groupByRoom(S.libSearchQuery);
+
+  if (grouped.size === 0) { container.innerHTML = ''; emptyEl.style.display = ''; return; }
+  emptyEl.style.display = 'none';
+  container.innerHTML = '';
+
+  for (const [roomTag, assets] of grouped) {
+    const COLLAPSED = 6;
+    const expanded  = S.libExpanded.get(roomTag) || false;
+    const visible   = expanded ? assets : assets.slice(0, COLLAPSED);
+
+    const sec = document.createElement('div');
+    sec.className = 'lib-section';
+    sec.innerHTML = `
+      <div class="lib-section-header">
+        <div class="lib-section-title">${escHtml(roomTag)}<span class="lib-section-count">${assets.length}</span></div>
+        ${assets.length > COLLAPSED
+          ? `<button class="lib-expand-btn" data-room="${escHtml(roomTag)}">${expanded ? '↑ Collapse' : `↓ Show all ${assets.length}`}</button>`
+          : ''}
+      </div>
+      <div class="lib-thumb-grid">
+        ${visible.map(a => renderLibCard(a, S.libSelectedIds.has(a.id))).join('')}
+      </div>`;
+
+    sec.querySelector('.lib-expand-btn')?.addEventListener('click', () => {
+      S.libExpanded.set(roomTag, !expanded);
+      renderLibrary();
+    });
+
+    sec.querySelectorAll('.lib-card').forEach(card => {
+      card.addEventListener('click', e => {
+        if (e.target.classList.contains('lib-del-btn')) {
+          if (confirm(`Delete "${card.dataset.name}"?`)) {
+            LibraryStore.deleteAsset(card.dataset.id);
+            S.libSelectedIds.delete(card.dataset.id);
+            S.editorSelectedIds.delete(card.dataset.id);
+            renderLibrary(); renderEditorLibraryGrid(); updateFloatBar(); updateChips();
+          }
+          return;
+        }
+        toggleLibSelect(card.dataset.id);
+      });
+    });
+
+    container.appendChild(sec);
   }
 }
 
-// Environment Logic
-function setEnvironment(file, url) {
-  baseBlob = file; baseURL = url;
-  if(baseBlob) {
+function renderLibCard(a, selected) {
+  return `
+    <div class="lib-card${selected?' selected':''}" data-id="${a.id}" data-name="${escHtml(a.name)}">
+      <button class="lib-del-btn" title="Delete">✕</button>
+      <div class="lib-check">✓</div>
+      <img class="lib-card-img" src="${a.dataUrl}" alt="${escHtml(a.name)}" loading="lazy" />
+      <div class="lib-card-info">
+        <div class="lib-card-name">${escHtml(a.name)}</div>
+        <div class="lib-card-tags">
+          <span class="lib-tag room">${escHtml(a.roomTag)}</span>
+          <span class="lib-tag obj">${escHtml(a.objectTag)}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleLibSelect(id) {
+  if (S.libSelectedIds.has(id)) { S.libSelectedIds.delete(id); }
+  else { if (S.libSelectedIds.size >= 5) { showToast('Max 5 objects — deselect one first.'); return; } S.libSelectedIds.add(id); }
+  renderLibrary();
+  updateFloatBar();
+}
+
+/* Search */
+$('libSearchBtn').addEventListener('click', () => { $('libSearchBar').style.display = 'flex'; $('libSearchInput').focus(); });
+$('libSearchClose').addEventListener('click', () => { S.libSearchQuery=''; $('libSearchInput').value=''; $('libSearchBar').style.display='none'; renderLibrary(); });
+$('libSearchInput').addEventListener('input', e => { S.libSearchQuery = e.target.value; renderLibrary(); });
+
+/* Float bar */
+function updateFloatBar() {
+  const sel = S.getLibSelected();
+  const bar = $('floatBar');
+  if (sel.length === 0) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  $('floatCount').textContent = `${sel.length} / 5`;
+  $('floatBadge').textContent = sel.length;
+  $('floatChips').innerHTML = sel.slice(0,4).map(a =>
+    `<div class="float-chip"><img src="${a.dataUrl}" alt="" />${escHtml(a.name)}</div>`
+  ).join('') + (sel.length > 4 ? `<div class="float-chip">+${sel.length-4} more</div>` : '');
+}
+
+$('floatClear').addEventListener('click', () => { S.libSelectedIds.clear(); renderLibrary(); updateFloatBar(); });
+$('libGenerateBtn').addEventListener('click', () => {
+  if (S.libSelectedIds.size === 0) return;
+  S.editorSelectedIds = new Set(S.libSelectedIds);
+  S.userEditedPrompt  = false;
+  switchScreen('editor');
+  setAssetMode('library');
+  renderEditorLibraryGrid();
+  updateChips();
+  rebuildPrompt();
+});
+
+/* ── Editor: room image ───────────────────────────────────── */
+function setBase(blob, url) {
+  S.baseBlob = blob; S.baseURL = url;
+  if (blob) {
     $('roomZone').style.display = 'none';
     $('roomThumb').src = url;
     $('roomMini').classList.add('visible');
     $('step2').classList.remove('disabled');
     $('step3').classList.remove('disabled');
   } else {
-    $('roomZone').style.display = 'block';
+    $('roomZone').style.display = '';
     $('roomMini').classList.remove('visible');
     $('step2').classList.add('disabled');
     $('step3').classList.add('disabled');
-    setAsset(null, null);
+    setObj(null, null);
   }
-  updateCanvasState();
+  syncCanvas();
 }
 
-// Asset Logic
-function setAsset(file, url) {
-  objBlob = file; objURL = url;
-  if(objBlob) {
+function setObj(blob, url) {
+  S.uploadedObjBlob = blob; S.uploadedObjURL = url;
+  if (blob) {
     $('objZone').style.display = 'none';
     $('objThumb').src = url;
     $('objMini').classList.add('visible');
-    // Step 3 is now always enabled if step 1 is done
   } else {
-    $('objZone').style.display = 'block';
+    $('objZone').style.display = '';
     $('objMini').classList.remove('visible');
   }
-  updateCanvasState();
+  updateChips(); rebuildPrompt(); syncCanvas();
 }
 
-function handleRead(file, cb) {
-  if(!file || !file.type.startsWith('image/')) return;
-  const r = new FileReader();
-  r.onload = e => cb(file, e.target.result);
-  r.readAsDataURL(file);
+$('roomInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const url = await readFile(f);
+  // Only save as original if none stored yet — preserves across iterations
+  if (!getOriginalScene()) saveOriginalScene(url);
+  setBase(f, url);
+  updateOriginalBtn();
+});
+$('roomRemove').addEventListener('click', () => { $('roomInput').value=''; setBase(null,null); $('resultView').classList.remove('visible'); });
+$('objInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  setObj(f, await readFile(f));
+});
+$('objRemove').addEventListener('click', () => { $('objInput').value=''; setObj(null,null); });
+
+function syncCanvas() {
+  if ($('resultView').classList.contains('visible')) return;
+  if (S.baseURL) {
+    $('emptyState').style.display = 'none';
+    $('canvasMainImg').src = S.baseURL;
+    $('viewport').classList.add('visible');
+    const hasRef = S.assetMode === 'upload' ? !!S.uploadedObjURL : S.editorSelectedIds.size > 0;
+    if (hasRef) {
+      const src = S.assetMode === 'upload' ? S.uploadedObjURL : (S.getEditorSelected()[0]?.dataUrl || '');
+      $('canvasAssetImg').src = src;
+      $('viewToggles').classList.add('visible');
+    } else {
+      $('viewToggles').classList.remove('visible');
+      showSceneView();
+    }
+  } else {
+    $('emptyState').style.display = '';
+    $('viewport').classList.remove('visible');
+  }
 }
 
-// Binds
-$('roomInput').addEventListener('change', e => {
-  handleRead(e.target.files[0], (file, url) => {
-    setEnvironment(file, url);
-    if(file) $('step3').classList.remove('disabled'); // Enable Step 3 right away since asset is optional
-  });
-});
-$('roomRemove').addEventListener('click', () => {
-    setEnvironment(null, null);
-    $('step3').classList.add('disabled');
-});
-$('roomRemove').addEventListener('click', () => { $('roomInput').value=''; setEnvironment(null,null); $('resultView').classList.remove('visible'); });
-
-$('objInput').addEventListener('change', e => handleRead(e.target.files[0], setAsset));
-$('objRemove').addEventListener('click', () => { $('objInput').value=''; setAsset(null,null); });
-
-// Preset Prompts Logic
-document.querySelectorAll('.btn-preset').forEach(btn => {
-  btn.addEventListener('click', () => {
-    $('promptInput').value = btn.dataset.prompt;
-    $('promptInput').focus();
-  });
-});
-
-// View Toggle Logic
-$('btnViewScene').addEventListener('click', () => {
-  $('btnViewScene').classList.add('active');
-  $('btnViewAsset').classList.remove('active');
-  $('canvasMainImg').style.display = 'block';
-  $('canvasAssetImg').style.display = 'none';
-});
-
+function showSceneView() {
+  $('btnViewScene').classList.add('active'); $('btnViewAsset').classList.remove('active');
+  $('canvasMainImg').style.display = ''; $('canvasAssetImg').style.display = 'none';
+}
+$('btnViewScene').addEventListener('click', showSceneView);
 $('btnViewAsset').addEventListener('click', () => {
-  $('btnViewAsset').classList.add('active');
-  $('btnViewScene').classList.remove('active');
-  $('canvasMainImg').style.display = 'none';
-  $('canvasAssetImg').style.display = 'block';
+  $('btnViewAsset').classList.add('active'); $('btnViewScene').classList.remove('active');
+  $('canvasMainImg').style.display = 'none'; $('canvasAssetImg').style.display = '';
 });
 
-// Iterate
 $('refineBtn').addEventListener('click', () => {
   const url = $('afterImg').src;
-  setEnvironment(dataUrlToBlob(url), url);
-  setAsset(null, null);
-  $('promptInput').value = '';
+  setBase(dataUrlToBlob(url), url);
+  setObj(null,null);
+  S.editorSelectedIds.clear();
+  S.assetConfigs.clear();
+  S.activeAssetId = null;
+  $('promptInput').value = ''; S.userEditedPrompt = false;
   $('resultView').classList.remove('visible');
-  updateCanvasState();
+  syncCanvas(); updateChips(); rebuildPrompt();
 });
 
-// Generate
+/* ── Asset mode toggle ────────────────────────────────────── */
+function setAssetMode(mode) {
+  S.assetMode = mode;
+  document.querySelectorAll('.asset-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  $('asset-upload-mode').style.display  = mode === 'upload'  ? '' : 'none';
+  $('asset-library-mode').style.display = mode === 'library' ? '' : 'none';
+  updateAssetBadge(); syncCanvas();
+}
+document.querySelectorAll('.asset-toggle-btn').forEach(b => b.addEventListener('click', () => {
+  setAssetMode(b.dataset.mode);
+  if (b.dataset.mode === 'library') renderEditorLibraryGrid();
+}));
+
+function updateAssetBadge() {
+  const badge = $('assetBadge');
+  const count = S.assetMode === 'library' ? S.editorSelectedIds.size : (S.uploadedObjBlob ? 1 : 0);
+  if (count > 0) { badge.textContent = `${count} selected`; badge.style.display = ''; }
+  else badge.style.display = 'none';
+}
+
+/* ── Editor inline library grid ──────────────────────────── */
+function renderEditorLibraryGrid() {
+  const container = $('editor-lib-grid');
+  const grouped   = LibraryStore.groupByRoom();
+  if (grouped.size === 0) {
+    container.innerHTML = `<div class="elib-empty">Library is empty.<br>Go to <strong>Library</strong> tab to add assets.</div>`;
+    return;
+  }
+  container.innerHTML = '';
+  for (const [roomTag, assets] of grouped) {
+    const COLLAPSED = 5;
+    const expanded  = S.elibExpanded.get(roomTag) || false;
+    const visible   = expanded ? assets : assets.slice(0, COLLAPSED);
+
+    const sec = document.createElement('div');
+    sec.className = 'elib-section';
+    sec.innerHTML = `
+      <div class="elib-section-header">
+        <span>${escHtml(roomTag)}</span>
+        ${assets.length > COLLAPSED
+          ? `<button class="elib-expand-btn" data-room="${escHtml(roomTag)}">${expanded ? '▲' : `▼ ${assets.length - COLLAPSED} more`}</button>`
+          : ''}
+      </div>
+      <div class="elib-grid">
+        ${visible.map(a => `
+          <div class="elib-thumb${S.editorSelectedIds.has(a.id)?' selected':''}" data-id="${a.id}" title="${escHtml(a.name)}">
+            <img src="${a.dataUrl}" alt="${escHtml(a.name)}" loading="lazy" />
+            <div class="elib-check">✓</div>
+          </div>`).join('')}
+      </div>`;
+
+    sec.querySelector('.elib-expand-btn')?.addEventListener('click', () => {
+      S.elibExpanded.set(roomTag, !expanded);
+      renderEditorLibraryGrid();
+    });
+    sec.querySelectorAll('.elib-thumb').forEach(thumb => {
+      thumb.addEventListener('click', () => {
+        const id = thumb.dataset.id;
+        if (S.editorSelectedIds.has(id)) { S.editorSelectedIds.delete(id); }
+        else { if (S.editorSelectedIds.size >= 5) { showToast('Max 5 objects.'); return; } S.editorSelectedIds.add(id); }
+        S.userEditedPrompt = false;
+        updateAssetBadge(); updateChips(); rebuildPrompt(); syncCanvas(); renderEditorLibraryGrid();
+      });
+    });
+    container.appendChild(sec);
+  }
+}
+
+/* ── Prompt Panel ─────────────────────────────────────────── */
+function getActiveAssets() {
+  if (S.assetMode === 'library') return S.getEditorSelected();
+  if (S.uploadedObjBlob) return [{ id:'__upload', name:'Uploaded', dataUrl: S.uploadedObjURL, objectTag:'Object' }];
+  return [];
+}
+
+/* Which tag groups are relevant per action */
+const ACTION_NEEDS = {
+  'Add':     { style: true,  placement: true  },
+  'Replace': { style: true,  placement: false },
+  'Remove':  { style: false, placement: false },
+  'Restyle': { style: true,  placement: false },
+};
+
+function updateTagGroupVisibility(action) {
+  const needs = ACTION_NEEDS[action] || { style: true, placement: true };
+  $('group-style').style.display     = needs.style     ? '' : 'none';
+  $('group-placement').style.display = needs.placement ? '' : 'none';
+}
+
+/* Focus a chip — load its config into the tag UI */
+function focusAsset(id) {
+  S.activeAssetId = id;
+
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('chip-active', c.dataset.id === id));
+
+  const cfg = S.getConfig(id);
+
+  document.querySelectorAll('#action-tags .tag').forEach(t => {
+    t.classList.toggle('active', t.textContent === cfg.action);
+  });
+  document.querySelectorAll('#style-tags .tag').forEach(t => {
+    t.classList.toggle('active', cfg.styles.has(t.textContent));
+  });
+  document.querySelectorAll('#placement-tags .tag').forEach(t => {
+    t.classList.toggle('active', t.dataset.value === cfg.placement);
+  });
+
+  updateTagGroupVisibility(cfg.action);
+
+  const assets = getActiveAssets();
+  const asset  = assets.find(a => a.id === id);
+  const label  = $('directive-for-label');
+  if (label && asset) label.textContent = `Editing settings for: ${asset.objectTag || asset.name}`;
+}
+
+function updateChips() {
+  const row    = $('selected-chips');
+  const assets = getActiveAssets();
+  updateAssetBadge();
+
+  if (assets.length === 0) {
+    row.innerHTML = '<span class="chips-empty">No objects selected</span>';
+    S.activeAssetId = null;
+    const label = $('directive-for-label');
+    if (label) label.textContent = '';
+    return;
+  }
+
+  row.innerHTML = assets.map(a => `
+    <div class="chip${S.activeAssetId === a.id ? ' chip-active' : ''}" data-id="${a.id}">
+      <img src="${a.dataUrl}" alt="" />
+      <span class="chip-label">${escHtml(a.objectTag || a.name)}</span>
+      <span class="chip-x" data-id="${a.id}">✕</span>
+    </div>`).join('');
+
+  // Click chip body = focus that asset
+  row.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', e => {
+      if (e.target.classList.contains('chip-x')) return;
+      focusAsset(chip.dataset.id);
+      S.userEditedPrompt = false;
+      rebuildPrompt();
+    });
+  });
+
+  // Click X = remove asset
+  row.querySelectorAll('.chip-x').forEach(x => x.addEventListener('click', e => {
+    e.stopPropagation();
+    const id = x.dataset.id;
+    S.removeConfig(id);
+    if (id === '__upload') { setObj(null, null); }
+    else { S.editorSelectedIds.delete(id); renderEditorLibraryGrid(); }
+    // Focus first remaining asset
+    const remaining = getActiveAssets().filter(a => a.id !== id);
+    S.activeAssetId = remaining.length ? remaining[0].id : null;
+    S.userEditedPrompt = false;
+    updateAssetBadge(); updateChips();
+    if (S.activeAssetId) focusAsset(S.activeAssetId);
+    rebuildPrompt(); syncCanvas();
+  }));
+
+  // Auto-focus first asset if none active
+  if (!S.activeAssetId || !assets.find(a => a.id === S.activeAssetId)) {
+    S.activeAssetId = assets[0].id;
+  }
+  focusAsset(S.activeAssetId);
+}
+
+function buildSentence(name, cfg) {
+  const styles  = [...cfg.styles].join(' and ') || 'natural';
+  const place   = cfg.placement || 'centered along the main wall';
+
+  switch (cfg.action) {
+    case 'Add':
+      return `Add a ${styles}-style ${name} to the room, positioned ${place}. It must cast a realistic ground shadow, match the room's ambient lighting, and maintain correct perspective scale.`;
+
+    case 'Replace':
+      return `Replace the existing ${name} in the room with the reference ${name}, keeping it in the exact same location and footprint. Match the ${styles} aesthetic. Preserve all surrounding objects and any foreground overlaps.`;
+
+    case 'Remove':
+      return `Remove the ${name} from the room entirely. Flawlessly inpaint the exposed area — floor, wall, or background — so it blends seamlessly with the surrounding surfaces, textures, and lighting.`;
+
+    case 'Restyle':
+      return `Restyle the existing ${name} to have a ${styles} aesthetic while keeping it in the same position. Change its materials, finish, and detailing only — do not move, scale, or remove it.`;
+
+    default:
+      return `Apply changes to the ${name} in a ${styles} style, placed ${place}.`;
+  }
+}
+
+function buildPrompt() {
+  const assets = getActiveAssets();
+  if (assets.length === 0) return '';
+
+  if (assets.length === 1) {
+    const a = assets[0];
+    return buildSentence(a.objectTag || a.name, S.getConfig(a.id));
+  }
+
+  // Multi-object: numbered list so AI handles each distinctly
+  const instructions = assets.map((a, i) => {
+    const name = a.objectTag || a.name;
+    return `${i + 1}. [${name.toUpperCase()}]: ${buildSentence(name, S.getConfig(a.id))}`;
+  }).join('\n');
+
+  return `Apply the following changes to the room. Handle each item independently while keeping the overall scene coherent:\n\n${instructions}`;
+}
+
+function rebuildPrompt() { if (!S.userEditedPrompt) $('promptInput').value = buildPrompt(); }
+
+/* Tag bindings — always apply to the currently focused asset */
+document.querySelectorAll('#action-tags .tag').forEach(t => t.addEventListener('click', () => {
+  if (!S.activeAssetId) return;
+  document.querySelectorAll('#action-tags .tag').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  S.getConfig(S.activeAssetId).action = t.textContent;
+  updateTagGroupVisibility(t.textContent);
+  S.userEditedPrompt = false; rebuildPrompt();
+}));
+
+document.querySelectorAll('#style-tags .tag').forEach(t => t.addEventListener('click', () => {
+  if (!S.activeAssetId) return;
+  t.classList.toggle('active');
+  S.getConfig(S.activeAssetId).styles = new Set(
+    [...document.querySelectorAll('#style-tags .tag.active')].map(x => x.textContent)
+  );
+  S.userEditedPrompt = false; rebuildPrompt();
+}));
+
+document.querySelectorAll('#placement-tags .tag').forEach(t => t.addEventListener('click', () => {
+  if (!S.activeAssetId) return;
+  document.querySelectorAll('#placement-tags .tag').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  S.getConfig(S.activeAssetId).placement = t.dataset.value;
+  S.userEditedPrompt = false; rebuildPrompt();
+}));
+
+$('promptInput').addEventListener('input', () => { S.userEditedPrompt = true; });
+
+/* ── Generate ─────────────────────────────────────────────── */
 $('generateBtn').addEventListener('click', async () => {
-  if (!baseBlob) return showToast('Missing Environment: Please assign a scene.');
-  if (!objBlob) return showToast('Missing Asset: Please assign a reference object.');
-  if (!$('promptInput').value.trim()) return showToast('Missing Directive: Add an editorial prompt.');
+  if (!S.baseBlob) return showToast('Upload a room scene first.');
+  const prompt = $('promptInput').value.trim();
+  if (!prompt)   return showToast('Add a directive or select tags.');
+
+  const assets     = getActiveAssets();
+  const objectTags = assets.map(a => a.objectTag || a.name);
 
   $('loader').classList.add('visible');
   $('resultView').classList.remove('visible');
   $('viewport').classList.remove('visible');
   $('emptyState').style.display = 'none';
 
-  const formData = new FormData();
-  const ext = baseBlob.type === 'image/jpeg' ? 'jpg' : 'png';
-  formData.append('room_image', new File([baseBlob], `layer.${ext}`, { type: baseBlob.type }));
-  formData.append('object_image', objBlob);
-  formData.append('prompt', $('promptInput').value.trim());
-
   try {
-    const res = await fetch('/edit', { method: 'POST', body: formData });
+    const fd  = new FormData();
+    const ext = S.baseBlob.type === 'image/jpeg' ? 'jpg' : 'png';
+    fd.append('room_image', new File([S.baseBlob], `room.${ext}`, { type: S.baseBlob.type }));
+    fd.append('prompt', prompt);
+    fd.append('object_tags', JSON.stringify(objectTags));
+
+    for (let i = 0; i < Math.min(assets.length, 5); i++) {
+      const a    = assets[i];
+      const blob = a.id === '__upload' ? S.uploadedObjBlob : dataUrlToBlob(a.dataUrl);
+      fd.append(`object_image_${i+1}`, new File([blob], `obj${i+1}.png`, { type: 'image/png' }));
+    }
+
+    const res  = await fetch('/edit', { method: 'POST', body: fd });
     const json = await res.json();
     if (!res.ok) throw new Error(json.detail || `Error ${res.status}`);
-    
-    const b64 = (json.images_b64 && json.images_b64.length) ? json.images_b64[0] : json.image_b64;
+
+    const b64      = json.images_b64?.length ? json.images_b64[0] : json.image_b64;
     const finalUrl = `data:image/${json.format};base64,${b64}`;
-    
-    $('beforeImg').src = baseURL;
-    $('afterImg').src = finalUrl;
+
+    $('beforeImg').src    = S.baseURL;
+    $('afterImg').src     = finalUrl;
     $('downloadBtn').href = finalUrl;
-    $('downloadBtn').download = 'synthesis-output.png';
-    
     $('resultView').classList.add('visible');
-  } catch(err) {
+    updateOriginalBtn();
+  } catch (err) {
     showToast(err.message);
-    updateCanvasState();
+    syncCanvas();
   } finally {
     $('loader').classList.remove('visible');
   }
+});
+
+/* ── Original scene ───────────────────────────────────────── */
+let _showingOriginal = false;
+
+function updateOriginalBtn() {
+  const orig = getOriginalScene();
+  const viewBtn  = $('viewOriginalBtn');
+  const clearBtn = $('clearOriginalBtn');
+  if (orig) {
+    viewBtn.style.display  = '';
+    clearBtn.style.display = '';
+  } else {
+    viewBtn.style.display  = 'none';
+    clearBtn.style.display = 'none';
+    hideOriginalPane();
+  }
+}
+
+function showOriginalPane() {
+  const orig = getOriginalScene();
+  if (!orig) return;
+  _showingOriginal = true;
+  $('originalImg').src = orig;
+  $('paneOriginal').style.display = '';
+  $('comparisonGrid').classList.add('three-col');
+  $('viewOriginalBtn').textContent = 'Hide Original';
+}
+
+function hideOriginalPane() {
+  _showingOriginal = false;
+  $('paneOriginal').style.display = 'none';
+  $('comparisonGrid').classList.remove('three-col');
+  $('viewOriginalBtn').textContent = 'View Original';
+}
+
+$('viewOriginalBtn').addEventListener('click', () => {
+  if (_showingOriginal) hideOriginalPane();
+  else showOriginalPane();
+});
+
+$('clearOriginalBtn').addEventListener('click', () => {
+  if (!confirm('Remove the stored original image? This cannot be undone.')) return;
+  clearOriginalScene();
+  hideOriginalPane();
+  updateOriginalBtn();
+  showToast('Original image cleared.');
+});
+
+/* ── Sync status indicator ───────────────────────────────── */
+function setSyncStatus(state) {
+  const el = $('syncStatus');
+  if (!el) return;
+  const map = {
+    loading: { dot: 'yellow', text: 'Loading library…' },
+    saving:  { dot: 'yellow', text: 'Saving…'          },
+    saved:   { dot: 'green',  text: 'Library saved'    },
+    synced:  { dot: 'green',  text: 'Library synced'   },
+    error:   { dot: 'red',    text: 'Sync failed'      },
+    local:   { dot: 'grey',   text: 'Local only'       },
+  };
+  const s = map[state] || map.local;
+  el.innerHTML = `<span class="sync-dot ${s.dot}"></span>${s.text}`;
+  // Auto-clear success messages after 3s
+  if (state === 'saved' || state === 'synced') {
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.innerHTML = `<span class="sync-dot green"></span>HF synced`; }, 3000);
+  }
+}
+
+/* ── Init ─────────────────────────────────────────────────── */
+updateChips();
+rebuildPrompt();
+updateOriginalBtn();
+// Load from HF (renders library after load)
+LibraryStore.initFromHF().then(() => {
+  renderLibrary();
+  renderEditorLibraryGrid();
 });
 </script>
 </body>
