@@ -368,6 +368,30 @@ body, html {
   letter-spacing: 0.1px;
 }
 
+/* Preset quick-fill buttons */
+.preset-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.btn-preset {
+  background: var(--canvas);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  padding: 5px 11px;
+  border-radius: var(--rounded-full);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-preset:hover {
+  background: var(--surface-bone);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 .prompt-input {
   width: 100%;
   height: 100px;
@@ -1087,9 +1111,9 @@ body, html {
 
         <!-- Action tags -->
         <div class="tag-group">
-          <div class="tag-group-label">Action</div>
+          <div class="tag-group-label">Action <span class="tag-group-hint">— optional, click again to deselect</span></div>
           <div class="tags-row" id="action-tags">
-            <button class="tag active" data-group="action">Add</button>
+            <button class="tag" data-group="action">Add</button>
             <button class="tag" data-group="action">Replace</button>
             <button class="tag" data-group="action">Remove</button>
             <button class="tag" data-group="action">Restyle</button>
@@ -1105,6 +1129,20 @@ body, html {
             <button class="tag" data-group="placement" data-value="in the right corner of the room">Right corner</button>
             <button class="tag" data-group="placement" data-value="in the foreground near the viewer">Foreground</button>
             <button class="tag" data-group="placement" data-value="against the back wall in the background">Background</button>
+          </div>
+        </div>
+
+        <!-- Preset quick-fill buttons -->
+        <div class="tag-group">
+          <div class="tag-group-label">Quick prompts <span class="tag-group-hint">— click to fill textarea</span></div>
+          <div class="preset-prompts" id="presetPrompts">
+            <button class="btn-preset" data-prompt="Replace the existing sofa with the reference sofa, maintaining the original location and preserving all foreground overlaps.">Sofa swap</button>
+            <button class="btn-preset" data-prompt="Replace the existing table with the reference table. Anchor it to the original footprint and scale naturally if the size differs.">Table swap</button>
+            <button class="btn-preset" data-prompt="Replace the existing curtains with the reference curtains. Ensure natural draping, folding, and realistic light transmission.">Curtain swap</button>
+            <button class="btn-preset" data-prompt="Add the reference item naturally to the room, scaled correctly and placed where it fits best in the layout.">Add item</button>
+            <button class="btn-preset" data-prompt="Remove the selected furniture from the room. Inpaint the exposed floor and wall area so it blends seamlessly with the surroundings.">Remove item</button>
+            <button class="btn-preset" data-prompt="Restyle the existing piece — change its materials, finish, and detailing using the reference as a guide. Keep its position and size unchanged.">Restyle item</button>
+            <button class="btn-preset" data-prompt="Add all reference objects to the room. Place each one naturally where it fits best, scaled correctly, with photorealistic shadows and lighting.">Place all</button>
           </div>
         </div>
 
@@ -1794,10 +1832,11 @@ const ACTION_NEEDS = {
   'Replace': { placement: false },
   'Remove':  { placement: false },
   'Restyle': { placement: false },
+  '':        { placement: true  },  // no action selected — show placement
 };
 
 function updateTagGroupVisibility(action) {
-  const needs = ACTION_NEEDS[action] || { placement: true };
+  const needs = ACTION_NEEDS[action] || ACTION_NEEDS[''];
   $('group-placement').style.display = needs.placement ? '' : 'none';
 }
 
@@ -1810,7 +1849,7 @@ function focusAsset(id) {
   const cfg = S.getConfig(id);
 
   document.querySelectorAll('#action-tags .tag').forEach(t => {
-    t.classList.toggle('active', t.textContent === cfg.action);
+    t.classList.toggle('active', cfg.action && t.textContent === cfg.action);
   });
   document.querySelectorAll('#placement-tags .tag').forEach(t => {
     t.classList.toggle('active', t.dataset.value === cfg.placement);
@@ -1882,20 +1921,26 @@ function buildSentence(name, cfg) {
 
   switch (cfg.action) {
     case 'Add': {
-      const posClause = place ? `, positioned ${place}` : ', placed naturally where it fits best in the scene';
-      return `Add the reference ${name} to the room${posClause}. It must cast a realistic ground shadow, match the room's existing lighting and perspective scale, and look physically grounded.`;
+      const posClause = place
+        ? `Position it ${place}, scaled correctly for the room.`
+        : 'Place it where it fits naturally in the room, respecting the existing layout and available space.';
+      return `Add the reference ${name} to this room. ${posClause} It must look photorealistic — correct perspective, lighting direction, scale relative to the room, and physically accurate ground shadows.`;
     }
     case 'Replace':
-      return `Replace the existing ${name} in the room with the reference ${name}. Keep it in the exact same location and footprint as the original. Preserve all surrounding objects and any foreground overlaps.`;
+      return `Replace the existing ${name} in the room with the reference ${name}. Anchor it to the original footprint — if the size differs, scale naturally from that anchor while preserving perspective. Keep all foreground objects that previously overlapped or occluded the original. Update shadows and ambient occlusion to match the new form.`;
 
     case 'Remove':
-      return `Remove the ${name} from the room entirely. Flawlessly inpaint the exposed floor, wall, or background area so it blends seamlessly with the surrounding surfaces, textures, and lighting.`;
+      return `Remove the ${name} from the room entirely. Inpaint the exposed background — wall, floor, skirting, architectural detail — so it blends seamlessly with the surrounding texture, grain, paint finish, and lighting. Remove any shadow the object previously cast on nearby surfaces.`;
 
     case 'Restyle':
-      return `Restyle the existing ${name} in place — change its materials, finish, and detailing to match the reference image. Do not move, scale, or remove it.`;
+      return `Restyle the existing ${name} using the reference image as the material and finish guide. Change only surface properties — materials, color, texture, fabric, patina. Keep its exact position, size, and silhouette unchanged. Update reflections and shadows if the new material properties (gloss, transparency) differ.`;
+
+    case '':
+      // No action selected — generic instruction that adapts to context
+      return `Use the reference ${name} in this room${place ? ', positioned ' + place : ''}. Match the room's lighting direction, perspective scale, and materiality. Ground it with physically accurate contact shadows.`;
 
     default:
-      return `Apply the reference ${name} to the room${place ? ', placed ' + place : ''}.`;
+      return `Apply the reference ${name} to the room${place ? ', placed ' + place : ''}. Match lighting, scale, and materiality to the scene.`;
   }
 }
 
@@ -1908,13 +1953,14 @@ function buildPrompt() {
     return buildSentence(a.objectTag || a.name, S.getConfig(a.id));
   }
 
-  // Multi-object: numbered list so AI handles each distinctly
+  // Multi-object: structured instructions, one per line
   const instructions = assets.map((a, i) => {
     const name = a.objectTag || a.name;
-    return `${i + 1}. [${name.toUpperCase()}]: ${buildSentence(name, S.getConfig(a.id))}`;
+    const cfg  = S.getConfig(a.id);
+    return `${i + 1}. [${name.toUpperCase()}] ${buildSentence(name, cfg)}`;
   }).join('\n');
 
-  return `Apply the following changes to the room. Handle each item independently while keeping the overall scene coherent:\n\n${instructions}`;
+  return `Execute the following independent edits to this room. Handle each one separately while keeping the overall scene coherent — completed edits must not interfere with each other:\n\n${instructions}`;
 }
 
 function rebuildPrompt() { if (!S.userEditedPrompt) $('promptInput').value = buildPrompt(); }
@@ -1922,12 +1968,27 @@ function rebuildPrompt() { if (!S.userEditedPrompt) $('promptInput').value = bui
 /* Tag bindings — always apply to the currently focused asset */
 document.querySelectorAll('#action-tags .tag').forEach(t => t.addEventListener('click', () => {
   if (!S.activeAssetId) return;
+  const alreadyActive = t.classList.contains('active');
   document.querySelectorAll('#action-tags .tag').forEach(x => x.classList.remove('active'));
-  t.classList.add('active');
-  S.getConfig(S.activeAssetId).action = t.textContent;
-  updateTagGroupVisibility(t.textContent);
+  if (!alreadyActive) {
+    t.classList.add('active');
+    S.getConfig(S.activeAssetId).action = t.textContent;
+    updateTagGroupVisibility(t.textContent);
+  } else {
+    // Deselect — no action preference
+    S.getConfig(S.activeAssetId).action = '';
+    updateTagGroupVisibility('');
+  }
   S.userEditedPrompt = false; rebuildPrompt();
 }));
+
+/* Preset prompt buttons — fill the textarea directly */
+document.querySelectorAll('.btn-preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $('promptInput').value = btn.dataset.prompt;
+    S.userEditedPrompt = true;
+  });
+});
 
 document.querySelectorAll('#placement-tags .tag').forEach(t => t.addEventListener('click', () => {
   if (!S.activeAssetId) return;

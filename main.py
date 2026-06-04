@@ -144,39 +144,41 @@ def build_edit_prompt(user_prompt: str, object_tags: list) -> str:
         )
     elif n == 1:
         reference_instruction = (
-            f"CRITICAL: Use the second uploaded image as the specific visual reference for the '{object_tags[0]}'. "
-            "Match its shape perfectly. Extract and apply its exact materiality and textures. "
+            f"CRITICAL: Use the second uploaded image as the exact visual reference for the '{object_tags[0]}'. "
+            "Match its shape, proportions, and silhouette precisely. "
+            "Extract and faithfully reproduce its materiality, surface textures, color, and finish. "
+            "Scale it correctly relative to the room and surrounding furniture. "
             "Ground it with realistic contact shadows that follow the room's primary light direction."
         )
     else:
-        guide_lines = ", ".join(
-            f"Object {i + 1} (grid position {i + 1}): '{tag}'" for i, tag in enumerate(object_tags)
+        guide_lines = "; ".join(
+            f"Cell {i + 1}: the reference '{tag}'" for i, tag in enumerate(object_tags)
         )
-        ncols = 2
         reference_instruction = (
-            f"OBJECT REFERENCE GUIDE: The second image is a {ncols}-column grid of {n} reference objects. "
+            f"OBJECT REFERENCE GUIDE: The second uploaded image is a 2-column labelled grid containing {n} separate reference objects. "
             f"{guide_lines}. "
-            "For each object: match its exact shape, materiality, and texture. "
-            "Place each one naturally per the user directive and room layout. "
-            "Ground every object with physically accurate shadows following the room's primary light."
+            "Each cell is an independent visual reference for a different object. "
+            "Extract each object's exact shape, proportions, materiality, and surface textures from its cell. "
+            "Place each one into the scene as instructed in the USER DIRECTIVE, ensuring correct relative scale between them. "
+            "Ground every object with physically accurate contact and ambient shadows that follow the room's primary light direction."
         )
 
     return (
         "You are an expert architectural visualization AI and senior interior designer. "
         "Your task is to execute the user's request with strict adherence to photorealism.\n\n"
         "CORE CONSTRAINTS:\n"
-        "- POSITION & PLACEMENT:\n"
-        "   * IF REPLACING of SIMILAR SIZE: occupy the exact same spatial location and footprint.\n"
-        "   * IF REPLACING with DIFFERENT SIZE: anchor to original origin point, scale naturally.\n"
-        "   * IF ADDING to OPEN SPACE: place naturally, strictly adhering to vanishing points and realistic scale.\n"
-        "   * IF REMOVING: flawlessly inpaint the newly exposed background to match surroundings.\n"
-        "- OCCLUSIONS & OVERLAPS: preserve foreground objects that blocked originals.\n"
-        "- REFLECTIONS & SHADOWS: physically accurate ground shadows, correct key light, ambient occlusion.\n"
-        "- ANCHOR & PRESERVE: do NOT alter room geometry or camera angle. Unaffected surfaces MUST remain identical.\n"
-        "- MATERIALITY: render with tactile, high-fidelity materiality.\n"
-        "- TEXTILES: ensure natural draping, folding, realistic light transmission.\n"
+        "- POSITION & PLACEMENT (Handling all scenarios):\n"
+        "   * IF REPLACING of SIMILAR SIZE: The new item MUST strictly occupy the exact same spatial location and footprint. Do NOT arbitrarily shift its position.\n"
+        "   * IF REPLACING with DIFFERENT SIZE: Anchor the new item to the original origin point, but scale it naturally. Adjust bounding box gracefully while maintaining perspective.\n"
+        "   * IF ADDING to OPEN SPACE: Place the item naturally as described, strictly adhering to the room's vanishing points and realistic scale.\n"
+        "   * IF REMOVING: Flawlessly synthesize and inpaint the newly exposed background (flooring, walls) to match the surrounding texture and lighting.\n"
+        "- OCCLUSIONS & OVERLAPS: Carefully preserve any foreground objects (plants, blankets, pillars) that blocked the original object. The new object must sit behind them logically.\n"
+        "- REFLECTIONS & SHADOWS: Ensure new objects cast physically accurate ground shadows, receive correct key light, and respect ambient occlusion. Update any mirrors or glossy floors to reflect the new state.\n"
+        "- ANCHOR & PRESERVE: Do NOT alter the room's overarching geometry or camera angle. The rest of the room (walls, flooring, unaffected furniture) MUST remain identical.\n"
+        "- MATERIALITY: Render with tactile, high-fidelity materiality (micro-imperfections, realistic reflections).\n"
+        "- TEXTILES & SOFT FURNISHINGS: Ensure natural draping, folding, and realistic light transmission or opacity (especially for curtains, rugs, and bedding).\n"
         f"- {reference_instruction}\n"
-        "- CLEANLINESS: output a single realistic edited image with NO text, NO watermarks, NO borders.\n\n"
+        "- CLEANLINESS: Output a single realistic edited image with NO text, NO watermarks, and NO borders.\n\n"
         f"USER DIRECTIVE: {user_prompt.strip()}"
     )
 
