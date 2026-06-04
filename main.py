@@ -269,7 +269,7 @@ async def edit_room(
     try:
         if reference_png:
             response = client.images.edit(
-                model="gpt-image-1",
+                model="gpt-image-1.5",
                 image=[
                     (room_path.name, room_png, "image/png"),
                     ("reference.png", reference_png, "image/png"),
@@ -280,7 +280,7 @@ async def edit_room(
             )
         else:
             response = client.images.edit(
-                model="gpt-image-1",
+                model="gpt-image-1.5",
                 image=(room_path.name, room_png, "image/png"),
                 prompt=final_prompt,
                 n=1,
