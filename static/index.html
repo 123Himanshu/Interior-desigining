@@ -1136,11 +1136,11 @@ body, html {
         <div class="tag-group">
           <div class="tag-group-label">Quick prompts <span class="tag-group-hint">— click to fill textarea</span></div>
           <div class="preset-prompts" id="presetPrompts">
-            <button class="btn-preset" data-prompt="Replace the existing center table with the reference asset, ensuring lighting and shadow accurately follow the room's main light source.">Table</button>
-            <button class="btn-preset" data-prompt="Replace the existing sofa with the referenced sofa, maintaining the original location and preserving all overlaps.">Sofa</button>
-            <button class="btn-preset" data-prompt="Change the curtains to the referenced material and style. Ensure natural draping, folding, and realistic light transmission.">Curtains</button>
-            <button class="btn-preset" data-prompt="Add the referenced item naturally to the center of the room, adhering to the room's overarching vanishing points.">Add Item</button>
-            <button class="btn-preset" data-prompt="Remove the selected furniture. Flawlessly synthesize and inpaint the newly exposed background flooring and walls to match the surroundings.">Remove</button>
+            <button class="btn-preset" data-prompt="Replace the existing center table with the reference asset.">Table</button>
+            <button class="btn-preset" data-prompt="Replace the existing sofa with the referenced sofa, maintaining the original location.">Sofa</button>
+            <button class="btn-preset" data-prompt="Change the curtains to the referenced material and style.">Curtains</button>
+            <button class="btn-preset" data-prompt="Add the referenced item to the room, placed naturally where it fits best.">Add Item</button>
+            <button class="btn-preset" data-prompt="Remove the selected furniture and inpaint the exposed background.">Remove</button>
           </div>
         </div>
 
@@ -1918,27 +1918,23 @@ function buildSentence(name, cfg) {
   const place = cfg.placement || '';
 
   switch (cfg.action) {
-    case 'Add': {
-      const posClause = place
-        ? `Position it ${place}, scaled correctly for the room.`
-        : 'Place it where it fits naturally in the room, respecting the existing layout and available space.';
-      return `Add the reference ${name} to this room. ${posClause} It must look photorealistic — correct perspective, lighting direction, scale relative to the room, and physically accurate ground shadows.`;
-    }
+    case 'Add':
+      return `Add the reference ${name} to the room${place ? ', positioned ' + place : ''}.`;
+
     case 'Replace':
-      return `Replace the existing ${name} in the room with the reference ${name}. Anchor it to the original footprint — if the size differs, scale naturally from that anchor while preserving perspective. Keep all foreground objects that previously overlapped or occluded the original. Update shadows and ambient occlusion to match the new form.`;
+      return `Replace the existing ${name} with the reference ${name}, keeping it in the same location.`;
 
     case 'Remove':
-      return `Remove the ${name} from the room entirely. Inpaint the exposed background — wall, floor, skirting, architectural detail — so it blends seamlessly with the surrounding texture, grain, paint finish, and lighting. Remove any shadow the object previously cast on nearby surfaces.`;
+      return `Remove the ${name} from the room and inpaint the exposed background.`;
 
     case 'Restyle':
-      return `Restyle the existing ${name} using the reference image as the material and finish guide. Change only surface properties — materials, color, texture, fabric, patina. Keep its exact position, size, and silhouette unchanged. Update reflections and shadows if the new material properties (gloss, transparency) differ.`;
+      return `Restyle the existing ${name} using the reference as the new finish — keep its position and size unchanged.`;
 
     case '':
-      // No action selected — generic instruction that adapts to context
-      return `Use the reference ${name} in this room${place ? ', positioned ' + place : ''}. Match the room's lighting direction, perspective scale, and materiality. Ground it with physically accurate contact shadows.`;
+      return `Use the reference ${name} in the room${place ? ', positioned ' + place : ''}.`;
 
     default:
-      return `Apply the reference ${name} to the room${place ? ', placed ' + place : ''}. Match lighting, scale, and materiality to the scene.`;
+      return `Apply the reference ${name} to the room${place ? ', placed ' + place : ''}.`;
   }
 }
 
@@ -1951,14 +1947,13 @@ function buildPrompt() {
     return buildSentence(a.objectTag || a.name, S.getConfig(a.id));
   }
 
-  // Multi-object: structured instructions, one per line
   const instructions = assets.map((a, i) => {
     const name = a.objectTag || a.name;
     const cfg  = S.getConfig(a.id);
-    return `${i + 1}. [${name.toUpperCase()}] ${buildSentence(name, cfg)}`;
+    return `${i + 1}. ${buildSentence(name, cfg)}`;
   }).join('\n');
 
-  return `Execute the following independent edits to this room. Handle each one separately while keeping the overall scene coherent — completed edits must not interfere with each other:\n\n${instructions}`;
+  return instructions;
 }
 
 function rebuildPrompt() { if (!S.userEditedPrompt) $('promptInput').value = buildPrompt(); }
