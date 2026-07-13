@@ -43,7 +43,8 @@ async def register(request: Request, authorization: str = Header(None)):
         credits = 0
     if user_exists(username):
         raise HTTPException(status_code=409, detail="Username already taken")
-    user = create_user(username, password, credits)
+    is_admin = True  # Users created via admin key are always admins
+    user = create_user(username, password, credits, is_admin=is_admin)
     token = create_session(user["id"])
     schedule_backup()
     return JSONResponse({"token": token, "username": username, "credits": credits, "is_admin": user.get("is_admin", False)})
@@ -140,32 +141,35 @@ th{color:#888;font-weight:600;font-size:11px;text-transform:uppercase;letter-spa
 </div>
 <script>
 let adminToken = localStorage.getItem('roomai_token') || '';
-const KEY = localStorage.getItem('admin_key') || '';
+let adminKey = localStorage.getItem('admin_key') || '';
 
-async function hd() {
-  const h = {};
+function hd() {
+  const h = {'Content-Type': 'application/json'};
   if (adminToken) h['Authorization'] = 'Bearer ' + adminToken;
-  if (KEY) h['X-Admin-Key'] = KEY;
+  if (adminKey) h['X-Admin-Key'] = adminKey;
   return h;
 }
 
 async function checkAccess() {
-  if (!adminToken) {
-    const k = prompt('Enter admin key (or leave blank if logged in as admin):');
-    if (k) localStorage.setItem('admin_key', k);
-  }
-  // Verify we can access
+  // Try current credentials
   try {
-    const r = await fetch('/admin/users', { headers: await hd() });
-    if (!r.ok) {
-      if (adminToken) { adminToken = ''; checkAccess(); return; }
-      document.body.innerHTML = '<h1 style=color:#f87171;text-align:center;margin-top:100px>Access Denied</h1>';
-      return;
-    }
-    loadUsers();
-  } catch(e) {
-    document.body.innerHTML = '<h1 style=color:#f87171;text-align:center;margin-top:100px>Cannot reach server</h1>';
+    const r = await fetch('/admin/users', { headers: hd() });
+    if (r.ok) { loadUsers(); return; }
+  } catch(e) {}
+
+  // If no token or access denied, try prompting for admin key
+  if (!adminKey) {
+    const k = prompt('Enter admin key:');
+    if (k) { adminKey = k; localStorage.setItem('admin_key', k); }
   }
+
+  // Retry
+  try {
+    const r = await fetch('/admin/users', { headers: hd() });
+    if (r.ok) { loadUsers(); return; }
+  } catch(e) {}
+
+  document.body.innerHTML = '<h1 style=color:#f87171;text-align:center;margin-top:100px>Access Denied<br><span style=font-size:14px;color:#888>Login to the app first or use a valid admin key</span></h1>';
 }
 
 checkAccess();
