@@ -1662,12 +1662,14 @@ function showToast(msg, ms=4000) {
 function uid() { return Math.random().toString(36).slice(2,9) + Date.now().toString(36); }
 
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function dataUrlToBlob(url) {
   const [h,d] = url.split(',');
-  const mime = h.match(/:(.*?);/)[1];
+  const m = h.match(/:(.*?);/);
+  if (!m) throw new Error('Invalid data URL');
+  const mime = m[1];
   const bin  = atob(d);
   const arr  = new Uint8Array(bin.length);
   for (let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
@@ -2523,9 +2525,11 @@ document.querySelectorAll('.drop-zone').forEach(zone => {
 });
 
 // Cookie consent check
-if (localStorage.getItem('cookie_consent')) {
-  document.getElementById('cookieBanner').style.display = 'none';
-}
+try {
+  if (localStorage.getItem('cookie_consent')) {
+    document.getElementById('cookieBanner').style.display = 'none';
+  }
+} catch {}
 </script>
 
 <!-- ══ DISCLAIMER MODAL ══ -->

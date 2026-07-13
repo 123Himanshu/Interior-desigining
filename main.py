@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.database import init_db
+from app.config import DATABASE_URL
 from app.services.backup import restore_from_hf
 from app.routes.auth import router as auth_router
 from app.routes.admin import router as admin_router
@@ -14,7 +15,8 @@ from app.routes.edit import router as edit_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    restore_from_hf()
+    if not DATABASE_URL:
+        restore_from_hf()
     yield
 
 
@@ -35,8 +37,22 @@ app.include_router(edit_router)
 
 @app.get("/health")
 async def health():
-    from app.config import HF_TOKEN, HF_DATASET_REPO
-    return {"status": "ok", "hf_sync": bool(HF_TOKEN and HF_DATASET_REPO)}
+    from app.config import HF_TOKEN, HF_DATASET_REPO, DATABASE_URL
+    from app.database import _USE_PG
+    result = {
+        "status": "ok",
+        "db": "postgresql" if _USE_PG else "sqlite",
+        "hf_sync": bool(HF_TOKEN and HF_DATASET_REPO),
+    }
+    try:
+        from app.database import get_db
+        conn = get_db()
+        conn.execute("SELECT 1")
+        conn.close()
+        result["db_ok"] = True
+    except Exception:
+        result["db_ok"] = False
+    return result
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

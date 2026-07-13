@@ -11,15 +11,16 @@ router = APIRouter()
 
 def _users_exist() -> bool:
     conn = get_db()
-    row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
-    conn.close()
-    return bool(row and row["cnt"] > 0)
+    try:
+        row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
+        return bool(row and row["cnt"] > 0)
+    finally:
+        conn.close()
 
 
 def verify_admin(request: Request, authorization: str = Header(None)):
     if ADMIN_KEY:
-        key = request.headers.get("x-admin-key") or request.headers.get("X-Admin-Key") or ""
-        if key == ADMIN_KEY:
+        if request.headers.get("x-admin-key") == ADMIN_KEY:
             return
 
     if authorization and authorization.startswith("Bearer "):

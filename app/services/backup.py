@@ -1,7 +1,7 @@
 import json as _json
 import threading
 import sys
-from app.database import get_db
+from app.database import get_db, _USE_PG, _sql
 from app.config import HF_TOKEN, HF_DATASET_REPO
 
 BACKUP_FILE = "db_backup.json"
@@ -22,6 +22,10 @@ def restore_from_hf():
             data = _json.load(f)
         conn = get_db()
         try:
+            row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
+            if row and row["cnt"] > 0:
+                return
+
             conn.execute("DELETE FROM library_items")
             conn.execute("DELETE FROM library_seeded")
             conn.execute("DELETE FROM sessions")
@@ -33,15 +37,21 @@ def restore_from_hf():
                 )
             conn.execute("UPDATE users SET is_admin = TRUE WHERE id = (SELECT MIN(id) FROM users) AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin = TRUE)")
             for s in data.get("sessions", []):
-                conn.execute("INSERT INTO sessions (token, user_id, created_at) VALUES (?,?,?)",
-                             (s["token"], s["user_id"], s.get("created_at")))
+                conn.execute("INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES (?,?,?,?)",
+                             (s["token"], s["user_id"], s.get("expires_at") or s.get("created_at"), s.get("created_at")))
             for li in data.get("library_items", []):
                 conn.execute(
                     "INSERT INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64, created_at) VALUES (?,?,?,?,?,?,?)",
                     (li["id"], li["user_id"], li["name"], li.get("room_tag", ""), li.get("obj_tag", ""), li["image_b64"], li.get("created_at")),
                 )
             for ls in data.get("library_seeded", []):
-                conn.execute("INSERT OR IGNORE INTO library_seeded (id) VALUES (?)", (ls["id"],))
+                conn.execute(
+                    _sql(
+                        "INSERT INTO library_seeded (id) VALUES (?) ON CONFLICT (id) DO NOTHING",
+                        "INSERT OR IGNORE INTO library_seeded (id) VALUES (?)",
+                    ),
+                    (ls["id"],),
+                )
             conn.commit()
         except Exception:
             try:
@@ -60,11 +70,13 @@ def _backup_to_hf():
         return
     try:
         conn = get_db()
-        users = [dict(r) for r in conn.execute("SELECT * FROM users").fetchall()]
-        sessions = [dict(r) for r in conn.execute("SELECT * FROM sessions").fetchall()]
-        library = [dict(r) for r in conn.execute("SELECT * FROM library_items").fetchall()]
-        seeded = [dict(r) for r in conn.execute("SELECT * FROM library_seeded").fetchall()]
-        conn.close()
+        try:
+            users = [dict(r) for r in conn.execute("SELECT * FROM users").fetchall()]
+            sessions = [dict(r) for r in conn.execute("SELECT * FROM sessions").fetchall()]
+            library = [dict(r) for r in conn.execute("SELECT * FROM library_items").fetchall()]
+            seeded = [dict(r) for r in conn.execute("SELECT * FROM library_seeded").fetchall()]
+        finally:
+            conn.close()
         data = {"users": users, "sessions": sessions, "library_items": library, "library_seeded": seeded}
         content = _json.dumps(data, ensure_ascii=False).encode("utf-8")
         from huggingface_hub import HfApi

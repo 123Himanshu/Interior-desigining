@@ -2,6 +2,8 @@ import base64
 import uuid
 import math
 import json as _json
+import traceback
+import sys
 from io import BytesIO
 from pathlib import Path
 from PIL import Image, ImageDraw
@@ -20,9 +22,9 @@ from app.config import USE_MODEL_LABS
 router = APIRouter()
 
 UPLOADS_DIR = Path("uploads")
-OUTPUTS_DIR = Path("outputs")
 UPLOADS_DIR.mkdir(exist_ok=True)
-OUTPUTS_DIR.mkdir(exist_ok=True)
+
+MAX_PROMPT_LENGTH = 4000
 
 
 def build_composite(pil_images: list, tags: list) -> bytes:
@@ -91,15 +93,18 @@ async def edit_room(
     object_image_5: UploadFile = File(None),
     object_tags: str = Form("[]"),
 ):
-    if not prompt.strip():
+    prompt = prompt.strip()
+    if not prompt:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+    if len(prompt) > MAX_PROMPT_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Prompt must be under {MAX_PROMPT_LENGTH} characters")
 
     allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
     if room_image.content_type not in allowed:
         raise HTTPException(status_code=400, detail="Room image must be JPEG, PNG, WebP, or GIF")
 
     try:
-        tags: list = _json.loads(object_tags)
+        tags = _json.loads(object_tags)
     except Exception:
         tags = []
 
@@ -107,33 +112,34 @@ async def edit_room(
     if credits is None:
         raise HTTPException(status_code=402, detail="Insufficient credits")
 
-    room_bytes = await room_image.read()
-    room_png = prepare_image(room_bytes)
     room_id = uuid.uuid4().hex
-    room_path = UPLOADS_DIR / f"{room_id}_room.png"
-    room_path.write_bytes(room_png)
-
-    raw_objects = [object_image_1, object_image_2, object_image_3, object_image_4, object_image_5]
-    pil_objects = []
-    for i, obj_upload in enumerate(raw_objects):
-        if obj_upload and obj_upload.filename:
-            obj_bytes = await obj_upload.read()
-            obj_png = prepare_image(obj_bytes)
-            (UPLOADS_DIR / f"{room_id}_obj{i + 1}.png").write_bytes(obj_png)
-            pil_objects.append(Image.open(BytesIO(obj_png)).convert("RGBA"))
-
-    reference_png: bytes | None = None
-    if len(pil_objects) > 1:
-        reference_png = build_composite(pil_objects, tags)
-        (UPLOADS_DIR / f"{room_id}_composite.png").write_bytes(reference_png)
-    elif len(pil_objects) == 1:
-        buf = BytesIO()
-        pil_objects[0].save(buf, format="PNG")
-        reference_png = buf.getvalue()
 
     try:
+        room_bytes = await room_image.read()
+        room_png = prepare_image(room_bytes)
+        room_path = UPLOADS_DIR / f"{room_id}_room.png"
+        room_path.write_bytes(room_png)
+
+        raw_objects = [object_image_1, object_image_2, object_image_3, object_image_4, object_image_5]
+        pil_objects = []
+        for i, obj_upload in enumerate(raw_objects):
+            if obj_upload and obj_upload.filename:
+                obj_bytes = await obj_upload.read()
+                obj_png = prepare_image(obj_bytes)
+                (UPLOADS_DIR / f"{room_id}_obj{i + 1}.png").write_bytes(obj_png)
+                pil_objects.append(Image.open(BytesIO(obj_png)).convert("RGBA"))
+
+        reference_png = None
+        if len(pil_objects) > 1:
+            reference_png = build_composite(pil_objects, tags)
+            (UPLOADS_DIR / f"{room_id}_composite.png").write_bytes(reference_png)
+        elif len(pil_objects) == 1:
+            buf = BytesIO()
+            pil_objects[0].save(buf, format="PNG")
+            reference_png = buf.getvalue()
+
         if USE_MODEL_LABS:
-            ml_prompt = prompt.strip()
+            ml_prompt = prompt
             if reference_png and tags:
                 ml_prompt = f"Add {tags[0]} from the object image to the room image. {ml_prompt}"
             dims = Image.open(BytesIO(room_png))
@@ -141,8 +147,19 @@ async def edit_room(
         else:
             final_prompt = build_prompt(prompt, tags[:len(pil_objects)])
             result_b64 = generate_openai(room_png, reference_png, final_prompt, room_path.name)
+
+    except HTTPException:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        raise
     except Exception:
-        refund_credit(user["id"])
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        traceback.print_exc(file=sys.stderr)
         raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
     finally:
         for f in UPLOADS_DIR.glob(f"{room_id}_*"):
@@ -151,7 +168,6 @@ async def edit_room(
             except Exception:
                 pass
 
-    result_bytes = base64.b64decode(result_b64)
     schedule_backup()
 
     return JSONResponse({

@@ -111,3 +111,13 @@ def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, w
         if ir.status_code == 200 and len(ir.content) > 100:
             return ir.content.decode("utf-8")
     raise RuntimeError("ModelsLab: timed out waiting for image")
+
+
+async def generate_modelslab_async(room_png, object_png, prompt, width=0, height=0):
+    import asyncio
+    return await asyncio.to_thread(generate_modelslab, room_png, object_png, prompt, width, height)
+
+
+async def generate_openai_async(room_png, reference_png, prompt, room_fname):
+    import asyncio
+    return await asyncio.to_thread(generate_openai, room_png, reference_png, prompt, room_fname)
