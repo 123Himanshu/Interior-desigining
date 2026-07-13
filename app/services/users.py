@@ -2,13 +2,6 @@ from app.database import get_db
 from app.services.auth import hash_password
 
 
-def _maybe_promote_first_user(conn):
-    row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
-    if row and row["cnt"] == 0:
-        conn.execute("UPDATE users SET is_admin = TRUE WHERE id = (SELECT MIN(id) FROM users)")
-        conn.commit()
-
-
 def create_user(username: str, password: str, credits: int = 100, is_admin: bool = False) -> dict:
     pw_hash, salt = hash_password(password)
     conn = get_db()
@@ -35,13 +28,30 @@ def get_user_credits(user_id: int) -> int:
     return row["credits"] if row else 0
 
 
-def deduct_credit(user_id: int) -> int:
+def charge_credit(user_id: int) -> int | None:
+    """Atomically deduct 1 credit. Returns new balance or None if insufficient."""
     conn = get_db()
     conn.execute("UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0", (user_id,))
     conn.commit()
     row = conn.execute("SELECT credits FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
-    return row["credits"] if row else 0
+    return row["credits"] if row else None
+
+
+def refund_credit(user_id: int):
+    conn = get_db()
+    conn.execute("UPDATE users SET credits = credits + 1 WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
+
+def deduct_credit(user_id: int) -> int | None:
+    conn = get_db()
+    conn.execute("UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0", (user_id,))
+    conn.commit()
+    row = conn.execute("SELECT credits FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return row["credits"] if row else None
 
 
 def set_credits(username: str, credits: int) -> dict | None:

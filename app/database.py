@@ -3,7 +3,7 @@ from pathlib import Path
 from app.config import DATABASE_URL
 
 _USE_PG = bool(DATABASE_URL)
-DB_PATH = Path("roomai.db")
+DB_PATH = Path("/data/roomai.db") if Path("/data").exists() else Path("roomai.db")
 
 
 class _PgConn:
@@ -68,6 +68,7 @@ def get_db():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -83,6 +84,7 @@ def init_db():
         conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE")
         conn.execute("""CREATE TABLE IF NOT EXISTS sessions (
             token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
+            expires_at TIMESTAMP NOT NULL DEFAULT (datetime('now', '+30 days')),
             created_at TIMESTAMP DEFAULT NOW())""")
         conn.execute("""CREATE TABLE IF NOT EXISTS library_items (
             id TEXT NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id),
@@ -109,6 +111,7 @@ def init_db():
         for stmt in [
             """CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
+                expires_at TIMESTAMP NOT NULL DEFAULT (datetime('now', '+30 days')),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id))""",
             """CREATE TABLE IF NOT EXISTS library_items (

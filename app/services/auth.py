@@ -18,7 +18,10 @@ def verify_password(password: str, salt: str, stored_hash: str) -> bool:
 def create_session(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
     conn = get_db()
-    conn.execute("INSERT INTO sessions (token, user_id) VALUES (?, ?)", (token, user_id))
+    conn.execute(
+        "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))",
+        (token, user_id),
+    )
     conn.commit()
     conn.close()
     return token
@@ -26,7 +29,10 @@ def create_session(user_id: int) -> str:
 
 def get_user_by_token(token: str) -> dict | None:
     conn = get_db()
-    row = conn.execute("SELECT user_id FROM sessions WHERE token = ?", (token,)).fetchone()
+    row = conn.execute(
+        "SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now')",
+        (token,),
+    ).fetchone()
     if not row:
         conn.close()
         return None
@@ -47,8 +53,6 @@ def login_user(username: str, password: str) -> tuple[str | None, str, int, bool
     if not verify_password(password, user["salt"], user["password_hash"]):
         conn.close()
         return None, "", 0, False
-    token = secrets.token_urlsafe(32)
-    conn.execute("INSERT INTO sessions (token, user_id) VALUES (?, ?)", (token, user["id"]))
-    conn.commit()
     conn.close()
+    token = create_session(user["id"])
     return token, user["username"], user["credits"], bool(user["is_admin"])

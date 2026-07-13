@@ -4,8 +4,16 @@ from app.config import ADMIN_KEY
 from app.services.users import create_user, set_credits, set_admin, list_users, user_exists
 from app.services.auth import create_session, get_user_by_token
 from app.services.backup import schedule_backup
+from app.database import get_db
 
 router = APIRouter()
+
+
+def _users_exist() -> bool:
+    conn = get_db()
+    row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
+    conn.close()
+    return bool(row and row["cnt"] > 0)
 
 
 def verify_admin(request: Request, authorization: str = Header(None)):
@@ -24,7 +32,10 @@ def verify_admin(request: Request, authorization: str = Header(None)):
 
 @router.post("/register")
 async def register(request: Request, authorization: str = Header(None)):
-    verify_admin(request, authorization)
+    if not _users_exist():
+        pass  # Allow first-user creation without auth
+    else:
+        verify_admin(request, authorization)
     body = await request.json()
     username = (body.get("username") or "").strip()
     password = (body.get("password") or "").strip()

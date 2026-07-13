@@ -10,7 +10,7 @@ from fastapi import APIRouter, File, Form, UploadFile, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
 from app.routes.auth import get_current_user
-from app.services.users import get_user_credits, deduct_credit
+from app.services.users import charge_credit, refund_credit
 from app.services.generation import (
     prepare_image, generate_modelslab, generate_openai,
 )
@@ -103,8 +103,8 @@ async def edit_room(
     except Exception:
         tags = []
 
-    credits = get_user_credits(user["id"])
-    if credits <= 0:
+    credits = charge_credit(user["id"])
+    if credits is None:
         raise HTTPException(status_code=402, detail="Insufficient credits")
 
     room_bytes = await room_image.read()
@@ -141,18 +141,22 @@ async def edit_room(
         else:
             final_prompt = build_prompt(prompt, tags[:len(pil_objects)])
             result_b64 = generate_openai(room_png, reference_png, final_prompt, room_path.name)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        refund_credit(user["id"])
+        raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
+    finally:
+        for f in UPLOADS_DIR.glob(f"{room_id}_*"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
 
     result_bytes = base64.b64decode(result_b64)
-    (OUTPUTS_DIR / f"{room_id}_result_1.png").write_bytes(result_bytes)
-
-    new_credits = deduct_credit(user["id"])
     schedule_backup()
 
     return JSONResponse({
         "image_b64": result_b64,
         "images_b64": [result_b64],
         "format": "png",
-        "credits": new_credits,
+        "credits": credits,
     })

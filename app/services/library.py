@@ -63,18 +63,26 @@ def get_user_library(user_id: int) -> list[dict]:
 
 def save_user_library(user_id: int, assets: list[dict]):
     conn = get_db()
-    conn.execute("DELETE FROM library_items WHERE user_id = ?", (user_id,))
-    for a in assets:
-        aid = str(a.get("id", ""))
-        if not aid:
-            continue
-        conn.execute(
-            "INSERT OR REPLACE INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?,?,?,?,?,?)",
-            (aid, user_id, a.get("name", ""), a.get("roomTag", a.get("room_tag", "")),
-             a.get("objectTag", a.get("obj_tag", "")), a.get("dataUrl", a.get("image_b64", ""))),
-        )
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM library_items WHERE user_id = ?", (user_id,))
+        for a in assets:
+            aid = str(a.get("id", ""))
+            if not aid:
+                continue
+            conn.execute(
+                "INSERT OR REPLACE INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?,?,?,?,?,?)",
+                (aid, user_id, a.get("name", ""), a.get("roomTag", a.get("room_tag", "")),
+                 a.get("objectTag", a.get("obj_tag", "")), a.get("dataUrl", a.get("image_b64", ""))),
+            )
+        conn.commit()
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
 
 def add_library_item(user_id: int, item_id: str, name: str, room_tag: str, obj_tag: str, data_url: str):

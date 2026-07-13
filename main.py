@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
 
 from app.database import init_db
 from app.services.backup import restore_from_hf
@@ -9,10 +10,15 @@ from app.routes.admin import router as admin_router
 from app.routes.library import router as library_router
 from app.routes.edit import router as edit_router
 
-init_db()
-restore_from_hf()
 
-app = FastAPI(title="Room AI - Interior Visualizer")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    restore_from_hf()
+    yield
+
+
+app = FastAPI(title="Room AI - Interior Visualizer", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
