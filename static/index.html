@@ -1718,7 +1718,14 @@ const Auth = {
     this._username = null;
     this._credits = 0;
     this._isAdmin = false;
-    try { localStorage.removeItem('roomai_token'); localStorage.removeItem('roomai_username'); localStorage.removeItem('roomai_isAdmin'); } catch {}
+    try {
+      localStorage.removeItem('roomai_token');
+      localStorage.removeItem('roomai_username');
+      localStorage.removeItem('roomai_isAdmin');
+      localStorage.removeItem('roomai_assets');
+      localStorage.removeItem('roomai_custom_room_tags');
+      localStorage.removeItem('roomai_custom_obj_tags');
+    } catch {}
     updateCreditDisplay();
     $('logoutBtn').style.display = 'none';
   },
@@ -1820,6 +1827,12 @@ async function handleAuthSubmit() {
     hideAuthOverlay();
     $('authUsername').value = '';
     $('authPassword').value = '';
+    // Clear any stale library data from previous user's localStorage
+    try {
+      localStorage.removeItem('roomai_assets');
+      localStorage.removeItem('roomai_custom_room_tags');
+      localStorage.removeItem('roomai_custom_obj_tags');
+    } catch {}
     LibraryStore.initFromHF().then(() => { renderLibrary(); renderEditorLibraryGrid(); });
   } catch (err) {
     showAuthError(err.message);
