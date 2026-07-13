@@ -63,7 +63,8 @@ def get_db():
             conn = psycopg2.connect(DATABASE_URL)
             return _PgConn(conn)
         except Exception:
-            pass
+            import sys
+            print("[WARN] PostgreSQL connection failed, falling back to SQLite", file=sys.stderr)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")

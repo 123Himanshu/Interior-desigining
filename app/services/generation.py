@@ -109,5 +109,5 @@ def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, w
         time.sleep(8)
         ir = req.get(image_url, timeout=30)
         if ir.status_code == 200 and len(ir.content) > 100:
-            return ir.content.decode("ascii", errors="ignore")
+            return ir.content.decode("utf-8")
     raise RuntimeError("ModelsLab: timed out waiting for image")
