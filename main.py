@@ -55,6 +55,20 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
+        CREATE TABLE IF NOT EXISTS library_items (
+            id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            room_tag TEXT DEFAULT '',
+            obj_tag TEXT DEFAULT '',
+            image_b64 TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id, user_id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+        CREATE TABLE IF NOT EXISTS library_seeded (
+            id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1)
+        );
     """)
     conn.commit()
     conn.close()
@@ -83,10 +97,6 @@ HF_DATASET_REPO = os.getenv("HF_DATASET_REPO", "")
 LIBRARY_FILE   = "library.json"
 _hf_enabled    = bool(HF_TOKEN and HF_DATASET_REPO)
 
-if _hf_enabled:
-    from huggingface_hub import HfApi
-    _hf_api = HfApi(token=HF_TOKEN)
-
 
 def _hf_load() -> list:
     try:
@@ -103,19 +113,6 @@ def _hf_load() -> list:
     except Exception:
         return []
 
-
-def _hf_save(assets: list) -> None:
-    try:
-        content = _json.dumps(assets, ensure_ascii=False).encode("utf-8")
-        _hf_api.upload_file(
-            path_or_fileobj=content,
-            path_in_repo=LIBRARY_FILE,
-            repo_id=HF_DATASET_REPO,
-            repo_type="dataset",
-            commit_message="Update library",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"HF save failed: {e}")
 
 client = openai.OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
@@ -520,26 +517,94 @@ async def health():
     return {"status": "ok", "hf_sync": _hf_enabled}
 
 
-# ── Library endpoints ──────────────────────────────────────────
+# ── Library endpoints (per-user) ────────────────────────────────
+
+def _seed_library_from_hf(user_id: int):
+    if not _hf_enabled:
+        return
+    if user_id != 1:
+        return
+    conn = _db()
+    row = conn.execute("SELECT id FROM library_seeded LIMIT 1").fetchone()
+    if row:
+        conn.close()
+        return
+    try:
+        assets = _hf_load()
+        for idx, a in enumerate(assets):
+            if isinstance(a, dict):
+                asset_id = a.get("id") or f"hf_seed_{idx}"
+                conn.execute(
+                    "INSERT OR REPLACE INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?, ?, ?, ?, ?, ?)",
+                    (str(asset_id), user_id, a.get("name", ""), a.get("room_tag", ""), a.get("obj_tag", ""), a.get("image_b64", "")),
+                )
+        conn.execute("INSERT OR REPLACE INTO library_seeded (id) VALUES (1)")
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
 
 @app.get("/library")
-async def get_library():
-    if not _hf_enabled:
-        return JSONResponse({"enabled": False, "assets": []})
-    assets = _hf_load()
+async def get_library(user: dict = Depends(get_current_user)):
+    _seed_library_from_hf(user["id"])
+    conn = _db()
+    rows = conn.execute(
+        "SELECT id, name, room_tag AS roomTag, obj_tag AS objectTag, image_b64 AS dataUrl, created_at AS createdAt FROM library_items WHERE user_id = ? ORDER BY createdAt",
+        (user["id"],),
+    ).fetchall()
+    conn.close()
+    assets = [dict(r) for r in rows]
     return JSONResponse({"enabled": True, "assets": assets})
 
 
 @app.post("/library")
-async def save_library(request: Request):
-    if not _hf_enabled:
-        return JSONResponse({"enabled": False, "saved": False})
+async def save_library(request: Request, user: dict = Depends(get_current_user)):
     body = await request.json()
-    assets = body.get("assets", [])
+    assets = body.get("assets")
     if not isinstance(assets, list):
         raise HTTPException(status_code=400, detail="assets must be an array")
-    _hf_save(assets)
+    conn = _db()
+    conn.execute("DELETE FROM library_items WHERE user_id = ?", (user["id"],))
+    for a in assets:
+        aid = str(a.get("id", ""))
+        if not aid:
+            continue
+        conn.execute(
+            "INSERT OR REPLACE INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?, ?, ?, ?, ?, ?)",
+            (aid, user["id"], a.get("name", ""), a.get("roomTag", a.get("room_tag", "")), a.get("objectTag", a.get("obj_tag", "")), a.get("dataUrl", a.get("image_b64", ""))),
+        )
+    conn.commit()
+    conn.close()
     return JSONResponse({"enabled": True, "saved": True, "count": len(assets)})
+
+
+@app.post("/library/add")
+async def add_library_item(request: Request, user: dict = Depends(get_current_user)):
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    image_b64 = (body.get("dataUrl") or body.get("image_b64") or "").strip()
+    if not name or not image_b64:
+        raise HTTPException(status_code=400, detail="name and image required")
+    item_id = str(body.get("id") or secrets.token_hex(8))
+    conn = _db()
+    conn.execute(
+        "INSERT OR REPLACE INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?, ?, ?, ?, ?, ?)",
+        (item_id, user["id"], name, body.get("roomTag", body.get("room_tag", "")), body.get("objectTag", body.get("obj_tag", "")), image_b64),
+    )
+    conn.commit()
+    conn.close()
+    return JSONResponse({"id": item_id, "name": name})
+
+
+@app.delete("/library/{item_id}")
+async def delete_library_item(item_id: str, user: dict = Depends(get_current_user)):
+    conn = _db()
+    conn.execute("DELETE FROM library_items WHERE id = ? AND user_id = ?", (item_id, user["id"]))
+    conn.commit()
+    conn.close()
+    return JSONResponse({"deleted": True})
 
 
 # ── Model API functions ──────────────────────────────────────────
@@ -582,6 +647,8 @@ def call_models_labs_edit(room_png: bytes, object_png: bytes | None, prompt: str
         width = Image.open(BytesIO(room_png)).width
     if height < 512:
         height = Image.open(BytesIO(room_png)).height
+    width  = max(512, min(2048, width  - (width  % 8)))
+    height = max(512, min(2048, height - (height % 8)))
     payload = {
         "key": MODEL_LABS_KEY,
         "model_id": "Interior-Mixer",
