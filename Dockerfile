@@ -16,8 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Ensure the upload and output directories exist with proper permissions
-RUN mkdir -p uploads outputs && chmod -R 777 uploads outputs
+# Ensure persistent storage and upload/output directories
+RUN mkdir -p /data uploads outputs && chmod 777 /data uploads outputs
 
 # Command to run the application. 
 # Railway automatically assigns an environment variable $PORT, but we default to 8000 just in case.
