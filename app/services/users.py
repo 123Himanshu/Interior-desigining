@@ -2,17 +2,30 @@ from app.database import get_db
 from app.services.auth import hash_password
 
 
-def create_user(username: str, password: str, credits: int = 100) -> dict:
+def _maybe_promote_first_user(conn):
+    row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
+    if row and row["cnt"] == 0:
+        conn.execute("UPDATE users SET is_admin = TRUE WHERE id = (SELECT MIN(id) FROM users)")
+        conn.commit()
+
+
+def create_user(username: str, password: str, credits: int = 100, is_admin: bool = False) -> dict:
     pw_hash, salt = hash_password(password)
     conn = get_db()
     conn.execute(
-        "INSERT INTO users (username, password_hash, salt, credits) VALUES (?, ?, ?, ?)",
-        (username, pw_hash, salt, credits),
+        "INSERT INTO users (username, password_hash, salt, credits, is_admin) VALUES (?, ?, ?, ?, ?)",
+        (username, pw_hash, salt, credits, is_admin),
     )
     conn.commit()
     row = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+    uid = row["id"]
+    # First user auto-gets admin
+    if uid == 1:
+        conn.execute("UPDATE users SET is_admin = TRUE WHERE id = 1")
+        conn.commit()
+        is_admin = True
     conn.close()
-    return {"id": row["id"], "username": username, "credits": credits}
+    return {"id": uid, "username": username, "credits": credits, "is_admin": is_admin}
 
 
 def get_user_credits(user_id: int) -> int:
@@ -43,11 +56,33 @@ def set_credits(username: str, credits: int) -> dict | None:
     return {"username": username, "credits": credits}
 
 
+def set_admin(username: str, is_admin: bool) -> dict | None:
+    conn = get_db()
+    row = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+    if not row:
+        conn.close()
+        return None
+    conn.execute("UPDATE users SET is_admin = ? WHERE id = ?", (is_admin, row["id"]))
+    conn.commit()
+    conn.close()
+    return {"username": username, "is_admin": is_admin}
+
+
 def list_users() -> list[dict]:
     conn = get_db()
-    rows = conn.execute("SELECT username, credits, created_at FROM users ORDER BY id").fetchall()
+    rows = conn.execute(
+        "SELECT username, credits, is_admin, created_at FROM users ORDER BY id"
+    ).fetchall()
     conn.close()
-    return [{"username": r["username"], "credits": r["credits"], "created_at": r["created_at"]} for r in rows]
+    return [
+        {
+            "username": r["username"],
+            "credits": r["credits"],
+            "is_admin": bool(r["is_admin"]) if r["is_admin"] is not None else False,
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
 
 
 def user_exists(username: str) -> bool:
@@ -55,3 +90,10 @@ def user_exists(username: str) -> bool:
     row = conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone()
     conn.close()
     return row is not None
+
+
+def is_user_admin(user_id: int) -> bool:
+    conn = get_db()
+    row = conn.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return bool(row["is_admin"]) if row else False

@@ -1,24 +1,30 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Header
 from fastapi.responses import JSONResponse, HTMLResponse
 from app.config import ADMIN_KEY
-from app.services.users import create_user, set_credits, list_users, user_exists
-from app.services.auth import create_session
+from app.services.users import create_user, set_credits, set_admin, list_users, user_exists
+from app.services.auth import create_session, get_user_by_token
 from app.services.backup import schedule_backup
 
 router = APIRouter()
 
 
-def verify_admin(request: Request):
-    if not ADMIN_KEY:
-        raise HTTPException(status_code=403, detail="Admin key not configured")
-    key = request.headers.get("x-admin-key") or request.headers.get("X-Admin-Key") or ""
-    if key != ADMIN_KEY:
-        raise HTTPException(status_code=403, detail="Invalid admin key")
+def verify_admin(request: Request, authorization: str = Header(None)):
+    if ADMIN_KEY:
+        key = request.headers.get("x-admin-key") or request.headers.get("X-Admin-Key") or ""
+        if key == ADMIN_KEY:
+            return
+
+    if authorization and authorization.startswith("Bearer "):
+        user = get_user_by_token(authorization[7:])
+        if user and user.get("is_admin"):
+            return
+
+    raise HTTPException(status_code=403, detail="Admin access required")
 
 
 @router.post("/register")
-async def register(request: Request):
-    verify_admin(request)
+async def register(request: Request, authorization: str = Header(None)):
+    verify_admin(request, authorization)
     body = await request.json()
     username = (body.get("username") or "").strip()
     password = (body.get("password") or "").strip()
@@ -40,12 +46,12 @@ async def register(request: Request):
     user = create_user(username, password, credits)
     token = create_session(user["id"])
     schedule_backup()
-    return JSONResponse({"token": token, "username": username, "credits": credits})
+    return JSONResponse({"token": token, "username": username, "credits": credits, "is_admin": user.get("is_admin", False)})
 
 
 @router.post("/admin/set-credits")
-async def admin_set_credits(request: Request):
-    verify_admin(request)
+async def admin_set_credits(request: Request, authorization: str = Header(None)):
+    verify_admin(request, authorization)
     body = await request.json()
     username = (body.get("username") or "").strip()
     credits = body.get("credits")
@@ -62,9 +68,24 @@ async def admin_set_credits(request: Request):
     return JSONResponse(result)
 
 
+@router.post("/admin/set-admin")
+async def admin_promote(request: Request, authorization: str = Header(None)):
+    verify_admin(request, authorization)
+    body = await request.json()
+    username = (body.get("username") or "").strip()
+    is_admin = body.get("is_admin", True)
+    if not username:
+        raise HTTPException(status_code=400, detail="username required")
+    result = set_admin(username, bool(is_admin))
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    schedule_backup()
+    return JSONResponse(result)
+
+
 @router.get("/admin/users")
-async def admin_list_users(request: Request):
-    verify_admin(request)
+async def admin_list_users(request: Request, authorization: str = Header(None)):
+    verify_admin(request, authorization)
     return JSONResponse(list_users())
 
 
@@ -118,9 +139,36 @@ th{color:#888;font-weight:600;font-size:11px;text-transform:uppercase;letter-spa
   <div id="userList">Click Refresh to load users.</div>
 </div>
 <script>
+let adminToken = localStorage.getItem('roomai_token') || '';
 const KEY = localStorage.getItem('admin_key') || '';
-if (!KEY) { const k = prompt('Enter admin key:'); if (k) localStorage.setItem('admin_key', k); else document.body.innerHTML = '<h1 style=color:#f87171;text-align:center;margin-top:100px>Admin key required</h1>'; }
-function hd() { return { 'X-Admin-Key': localStorage.getItem('admin_key') || '' }; }
+
+async function hd() {
+  const h = {};
+  if (adminToken) h['Authorization'] = 'Bearer ' + adminToken;
+  if (KEY) h['X-Admin-Key'] = KEY;
+  return h;
+}
+
+async function checkAccess() {
+  if (!adminToken) {
+    const k = prompt('Enter admin key (or leave blank if logged in as admin):');
+    if (k) localStorage.setItem('admin_key', k);
+  }
+  // Verify we can access
+  try {
+    const r = await fetch('/admin/users', { headers: await hd() });
+    if (!r.ok) {
+      if (adminToken) { adminToken = ''; checkAccess(); return; }
+      document.body.innerHTML = '<h1 style=color:#f87171;text-align:center;margin-top:100px>Access Denied</h1>';
+      return;
+    }
+    loadUsers();
+  } catch(e) {
+    document.body.innerHTML = '<h1 style=color:#f87171;text-align:center;margin-top:100px>Cannot reach server</h1>';
+  }
+}
+
+checkAccess();
 async function createUser() {
   const u = document.getElementById('newUser').value.trim();
   const p = document.getElementById('newPass').value.trim();
@@ -130,7 +178,7 @@ async function createUser() {
   try {
     const r = await fetch('/register', { method:'POST', headers:{...hd(),'Content-Type':'application/json'}, body: JSON.stringify({username:u,password:p,credits:c||100}) });
     const d = await r.json();
-    if (r.ok) { m.innerHTML = `<div class=msg.ok>Created: ${d.username} &mdash; ${d.credits} credits</div>`; loadUsers(); }
+    if (r.ok) { m.innerHTML = `<div class=msg.ok>Created: ${d.username} &mdash; ${d.credits} credits ${d.is_admin ? '(Admin)' : ''}</div>`; loadUsers(); }
     else { m.innerHTML = `<div class=msg.err>${d.detail||'Error'}</div>`; }
   } catch(e) { m.innerHTML = `<div class=msg.err>${e.message}</div>`; }
 }
@@ -140,9 +188,13 @@ async function loadUsers() {
     const r = await fetch('/admin/users', { headers: hd() });
     const users = await r.json();
     if (!r.ok) { div.innerHTML = `<div class=msg.err>${users.detail||'Error'}</div>`; return; }
-    let html = '<table><tr><th>Username</th><th>Credits</th><th>Actions</th></tr>';
+    let html = '<table><tr><th>Username</th><th>Credits</th><th>Role</th><th>Actions</th></tr>';
     for (const u of users) {
-      html += `<tr><td>${u.username}</td><td><input class=inline-input id=cr_${u.username} value=${u.credits} /></td><td><button class=inline-input onclick="setCredits('${u.username}')" style=width:auto>Save</button></td></tr>`;
+      const adminBadge = u.is_admin ? '<span style=color:#22c55e;font-weight:700>Admin</span>' : '<span style=color:#888>User</span>';
+      const toggleBtn = u.is_admin
+        ? `<button onclick="toggleAdmin('${u.username}',false)" style=color:#f59e0b>Demote</button>`
+        : `<button onclick="toggleAdmin('${u.username}',true)" style=color:#22c55e>Make Admin</button>`;
+      html += `<tr><td>${u.username}</td><td><input class=inline-input id=cr_${u.username} value=${u.credits} /></td><td>${adminBadge}</td><td><button class=inline-input onclick="setCredits('${u.username}')" style=width:auto>Save</button> ${toggleBtn}</td></tr>`;
     }
     html += '</table>';
     div.innerHTML = html;
@@ -155,6 +207,12 @@ async function setCredits(username) {
     const r = await fetch('/admin/set-credits', { method:'POST', headers:{...hd(),'Content-Type':'application/json'}, body: JSON.stringify({username, credits: val}) });
     const d = await r.json();
     if (r.ok) { inp.value = d.credits; } else { alert(d.detail || 'Error'); }
+  } catch(e) { alert(e.message); }
+}
+async function toggleAdmin(username, makeAdmin) {
+  try {
+    const r = await fetch('/admin/set-admin', { method:'POST', headers:{...hd(),'Content-Type':'application/json'}, body: JSON.stringify({username, is_admin: makeAdmin}) });
+    if (r.ok) { loadUsers(); } else { const d = await r.json(); alert(d.detail || 'Error'); }
   } catch(e) { alert(e.message); }
 }
 </script>

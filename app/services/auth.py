@@ -30,25 +30,25 @@ def get_user_by_token(token: str) -> dict | None:
     if not row:
         conn.close()
         return None
-    user = conn.execute("SELECT id, username, credits FROM users WHERE id = ?", (row["user_id"],)).fetchone()
+    user = conn.execute("SELECT id, username, credits, is_admin FROM users WHERE id = ?", (row["user_id"],)).fetchone()
     conn.close()
     return dict(user) if user else None
 
 
-def login_user(username: str, password: str) -> tuple[str | None, str, int]:
+def login_user(username: str, password: str) -> tuple[str | None, str, int, bool]:
     conn = get_db()
     user = conn.execute(
-        "SELECT id, username, password_hash, salt, credits FROM users WHERE username = ?",
+        "SELECT id, username, password_hash, salt, credits, is_admin FROM users WHERE username = ?",
         (username,),
     ).fetchone()
     if not user:
         conn.close()
-        return None, "", 0
+        return None, "", 0, False
     if not verify_password(password, user["salt"], user["password_hash"]):
         conn.close()
-        return None, "", 0
+        return None, "", 0, False
     token = secrets.token_urlsafe(32)
     conn.execute("INSERT INTO sessions (token, user_id) VALUES (?, ?)", (token, user["id"]))
     conn.commit()
     conn.close()
-    return token, user["username"], user["credits"]
+    return token, user["username"], user["credits"], bool(user["is_admin"])

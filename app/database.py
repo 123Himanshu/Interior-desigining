@@ -77,7 +77,9 @@ def init_db():
             id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL, salt TEXT NOT NULL,
             credits INTEGER NOT NULL DEFAULT 100,
+            is_admin BOOLEAN NOT NULL DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT NOW())""")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE")
         conn.execute("""CREATE TABLE IF NOT EXISTS sessions (
             token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
             created_at TIMESTAMP DEFAULT NOW())""")
@@ -94,7 +96,16 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL, salt TEXT NOT NULL,
                 credits INTEGER NOT NULL DEFAULT 100,
+                is_admin INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""",
+            # SQLite doesn't support ADD COLUMN IF NOT EXISTS, so we try and ignore errors
+        ]:
+            conn.execute(stmt)
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
+        for stmt in [
             """CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

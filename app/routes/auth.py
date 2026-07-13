@@ -22,12 +22,12 @@ async def login(body: dict):
         raise HTTPException(status_code=400, detail="Username and password are required")
     if len(password) < 4:
         raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
-    token, uname, credits = login_user(username, password)
+    token, uname, credits, is_admin = login_user(username, password)
     if token is None:
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    return JSONResponse({"token": token, "username": uname, "credits": credits})
+    return JSONResponse({"token": token, "username": uname, "credits": credits, "is_admin": is_admin})
 
 
 @router.get("/me")
 async def get_me(user: dict = Depends(get_current_user)):
-    return JSONResponse({"username": user["username"], "credits": user["credits"]})
+    return JSONResponse({"username": user["username"], "credits": user["credits"], "is_admin": user.get("is_admin", False)})

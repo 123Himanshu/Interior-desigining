@@ -26,9 +26,12 @@ def restore_from_hf():
         conn.execute("DELETE FROM users")
         for u in data.get("users", []):
             conn.execute(
-                "INSERT INTO users (id, username, password_hash, salt, credits, created_at) VALUES (?,?,?,?,?,?)",
-                (u["id"], u["username"], u["password_hash"], u["salt"], u["credits"], u.get("created_at")),
+                "INSERT INTO users (id, username, password_hash, salt, credits, is_admin, created_at) VALUES (?,?,?,?,?,?,?)",
+                (u["id"], u["username"], u["password_hash"], u["salt"], u["credits"], u.get("is_admin", False), u.get("created_at")),
             )
+        # Ensure user #1 is always admin after restore
+        conn.execute("UPDATE users SET is_admin = TRUE WHERE id = (SELECT MIN(id) FROM users)")
+        conn.execute("UPDATE users SET is_admin = FALSE WHERE id != (SELECT MIN(id) FROM users)")
         for s in data.get("sessions", []):
             conn.execute("INSERT INTO sessions (token, user_id, created_at) VALUES (?,?,?)",
                          (s["token"], s["user_id"], s.get("created_at")))

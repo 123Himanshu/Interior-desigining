@@ -185,10 +185,12 @@ const Auth = {
   _token: null,
   _username: null,
   _credits: 0,
+  _isAdmin: false,
 
   get token() { return this._token; },
   get username() { return this._username; },
   get credits() { return this._credits; },
+  get isAdmin() { return this._isAdmin; },
 
   isLoggedIn() { return !!this._token; },
 
@@ -196,6 +198,7 @@ const Auth = {
     try {
       localStorage.setItem('roomai_token', this._token || '');
       localStorage.setItem('roomai_username', this._username || '');
+      localStorage.setItem('roomai_isAdmin', this._isAdmin ? '1' : '0');
     } catch {}
   },
 
@@ -203,14 +206,16 @@ const Auth = {
     try {
       this._token = localStorage.getItem('roomai_token') || null;
       this._username = localStorage.getItem('roomai_username') || null;
-    } catch { this._token = null; this._username = null; }
+      this._isAdmin = localStorage.getItem('roomai_isAdmin') === '1';
+    } catch { this._token = null; this._username = null; this._isAdmin = false; }
   },
 
   clear() {
     this._token = null;
     this._username = null;
     this._credits = 0;
-    try { localStorage.removeItem('roomai_token'); localStorage.removeItem('roomai_username'); } catch {}
+    this._isAdmin = false;
+    try { localStorage.removeItem('roomai_token'); localStorage.removeItem('roomai_username'); localStorage.removeItem('roomai_isAdmin'); } catch {}
     updateCreditDisplay();
     $('logoutBtn').style.display = 'none';
   },
@@ -222,6 +227,7 @@ const Auth = {
       const data = await res.json();
       this._username = data.username;
       this._credits = data.credits;
+      this._isAdmin = data.is_admin || false;
       updateCreditDisplay();
       $('logoutBtn').style.display = '';
       return true;
@@ -242,6 +248,7 @@ const Auth = {
     this._token = data.token;
     this._username = data.username;
     this._credits = data.credits;
+    this._isAdmin = data.is_admin || false;
     this.persist();
     updateCreditDisplay();
     $('logoutBtn').style.display = '';
