@@ -2,6 +2,7 @@
 __pycache__/
 uploads/
 outputs/
+roomai.db
 .git/
 .gitignore
 *.pyc

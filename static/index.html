@@ -436,6 +436,16 @@ body, html {
 }
 .btn-generate:hover { background: var(--primary-deep); }
 
+.disclaimer-inline {
+  font-size: 10px;
+  color: var(--mute);
+  text-align: center;
+  margin-top: 10px;
+  line-height: 1.4;
+  padding: 0 4px;
+}
+.disclaimer-inline strong { color: var(--charcoal); }
+
 /* ── Canvas ─────────────────────────────────────────────────── */
 .canvas-area {
   flex: 1;
@@ -1003,6 +1013,149 @@ body, html {
 }
 .error-toast.visible { transform: translateY(0); opacity: 1; }
 
+/* ── Auth Overlay ─────────────────────────────────────────── */
+.auth-overlay {
+  position: fixed; inset: 0;
+  background: var(--canvas);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.auth-overlay.hidden { display: none; }
+.auth-card {
+  background: var(--surface-card);
+  border-radius: 18px;
+  width: 400px;
+  max-width: 94vw;
+  box-shadow: 0 24px 80px rgba(32,32,32,0.10), 0 0 0 1px rgba(32,32,32,0.06);
+  overflow: hidden;
+  animation: modal-in 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.auth-header {
+  padding: var(--sp-xxl) var(--sp-xxl) var(--sp-lg);
+  text-align: center;
+}
+.auth-brand {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.auth-brand span { color: var(--primary); }
+.auth-subtitle { font-size: 13px; color: var(--mute); }
+.auth-tabs {
+  display: flex;
+  margin: 0 var(--sp-xxl);
+  border-bottom: 1px solid var(--hairline);
+}
+.auth-tab {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mute);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  letter-spacing: 0.2px;
+}
+.auth-tab.active { color: var(--ink); border-bottom-color: var(--primary); }
+.auth-tab:hover:not(.active) { color: var(--charcoal); }
+.auth-form {
+  padding: var(--sp-xl) var(--sp-xxl) var(--sp-xxl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-md);
+}
+.auth-field { display: flex; flex-direction: column; gap: 5px; }
+.auth-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.auth-input {
+  width: 100%;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+  padding: 10px 13px;
+  font-family: inherit;
+  font-size: 14px;
+  border-radius: var(--rounded-sm);
+  outline: none;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+.auth-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  background: #fff;
+}
+.auth-error {
+  background: rgba(234,40,4,0.08);
+  color: var(--primary-deep);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: var(--rounded-xs);
+  display: none;
+  line-height: 1.4;
+}
+.auth-error.visible { display: block; }
+.btn-auth {
+  width: 100%;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 11px 24px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: var(--rounded-full);
+  cursor: pointer;
+  transition: background 0.15s;
+  height: 44px;
+  letter-spacing: 0.2px;
+}
+.btn-auth:hover { background: var(--primary-deep); }
+.btn-auth:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Credit badge in top nav */
+.credit-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--charcoal);
+  margin-right: 14px;
+}
+.credit-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+}
+.credit-dot.low { background: #f59e0b; }
+.credit-dot.zero { background: #ef4444; }
+.btn-logout {
+  background: none;
+  border: 1px solid var(--hairline);
+  color: var(--mute);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: var(--rounded-full);
+  cursor: pointer;
+  transition: all 0.13s;
+}
+.btn-logout:hover { color: var(--primary); border-color: var(--primary); }
+
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 1024px) { .comparison-grid { grid-template-columns: 1fr; gap: var(--sp-xl); } }
 @media (max-width: 768px) {
@@ -1020,15 +1173,43 @@ body, html {
 </style>
 </head>
 <body>
+
+<!-- ══ AUTH OVERLAY ══ -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-brand">NEIV</div>
+      <div class="auth-subtitle">Invite-only · Sign in to continue</div>
+    </div>
+    <div class="auth-form" id="authForm">
+      <div class="auth-field">
+        <label class="auth-label">Username</label>
+        <input type="text" id="authUsername" class="auth-input" placeholder="Enter username" autocomplete="username" />
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Password</label>
+        <input type="password" id="authPassword" class="auth-input" placeholder="Enter password" autocomplete="current-password" />
+      </div>
+      <div class="auth-error" id="authError"></div>
+      <button class="btn-auth" id="authSubmitBtn">Log in</button>
+    </div>
+  </div>
+</div>
+
 <div class="app-container">
 
   <!-- ══ HEADER ══ -->
   <nav class="top-nav">
-    <div class="brand-mark">ROOM<span>AI</span></div>
+    <div class="brand-mark">NEIV</div>
     <div class="header-nav">
       <button class="nav-pill active" data-screen="editor">Editor</button>
       <button class="nav-pill" data-screen="library">Library</button>
     </div>
+    <div class="credit-badge" id="creditBadge">
+      <span class="credit-dot" id="creditDot"></span>
+      <span id="creditCount">--</span> credits
+    </div>
+    <button class="btn-logout" id="logoutBtn" style="display:none">Log out</button>
     <div class="sync-status" id="syncStatus"></div>
   </nav>
 
@@ -1150,6 +1331,9 @@ body, html {
 
       <div class="sidebar-footer">
         <button class="btn-generate" id="generateBtn">Process Render</button>
+        <div class="disclaimer-inline">
+          <strong>Important:</strong> AI-generated visualizations are for design inspiration only. They do not represent exact measurements, scale, spacing, dimensions, or the final installed appearance. Always verify specifications before purchasing or installing furniture.
+        </div>
       </div>
     </aside>
 
@@ -1345,7 +1529,7 @@ const LibraryStore = {
       this._syncing = true;
       setSyncStatus('saving');
       try {
-        const res = await fetch('/library', {
+        const res = await authFetch('/library', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ assets: this.getAssets() }),
@@ -1399,18 +1583,16 @@ const LibraryStore = {
   async initFromHF() {
     setSyncStatus('loading');
     try {
-      const res = await fetch('/library');
+      const res = await authFetch('/library');
       const json = await res.json();
       this.hfEnabled = json.enabled;
       if (!json.enabled) { setSyncStatus('local'); return; }
 
-      // Merge: HF is source of truth. Put HF assets into localStorage.
       const remoteIds  = new Set(json.assets.map(a => a.id));
       const localOnly  = this.getAssets().filter(a => !remoteIds.has(a.id));
       const merged     = [...json.assets, ...localOnly];
       this._setAssets(merged);
 
-      // If localOnly had new items, push merged back up
       if (localOnly.length > 0) this._pushToHF();
 
       setSyncStatus('synced');
@@ -1491,6 +1673,147 @@ function readFile(file) {
     r.readAsDataURL(file);
   });
 }
+
+/* ── Auth ─────────────────────────────────────────────────── */
+const Auth = {
+  _token: null,
+  _username: null,
+  _credits: 0,
+
+  get token() { return this._token; },
+  get username() { return this._username; },
+  get credits() { return this._credits; },
+
+  isLoggedIn() { return !!this._token; },
+
+  persist() {
+    try {
+      localStorage.setItem('roomai_token', this._token || '');
+      localStorage.setItem('roomai_username', this._username || '');
+    } catch {}
+  },
+
+  restore() {
+    try {
+      this._token = localStorage.getItem('roomai_token') || null;
+      this._username = localStorage.getItem('roomai_username') || null;
+    } catch { this._token = null; this._username = null; }
+  },
+
+  clear() {
+    this._token = null;
+    this._username = null;
+    this._credits = 0;
+    try { localStorage.removeItem('roomai_token'); localStorage.removeItem('roomai_username'); } catch {}
+    updateCreditDisplay();
+    $('logoutBtn').style.display = 'none';
+  },
+
+  async verify() {
+    try {
+      const res = await fetch('/me', { headers: { Authorization: `Bearer ${this._token}` } });
+      if (!res.ok) throw new Error('invalid');
+      const data = await res.json();
+      this._username = data.username;
+      this._credits = data.credits;
+      updateCreditDisplay();
+      $('logoutBtn').style.display = '';
+      return true;
+    } catch {
+      this.clear();
+      return false;
+    }
+  },
+
+  async login(username, password) {
+    const res = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Login failed');
+    this._token = data.token;
+    this._username = data.username;
+    this._credits = data.credits;
+    this.persist();
+    updateCreditDisplay();
+    $('logoutBtn').style.display = '';
+  },
+
+  logout() {
+    this.clear();
+    showAuthOverlay();
+  },
+};
+
+function updateCreditDisplay() {
+  const c = Auth._credits;
+  $('creditCount').textContent = Auth.isLoggedIn() ? c : '--';
+  const dot = $('creditDot');
+  dot.classList.remove('low', 'zero');
+  if (!Auth.isLoggedIn()) return;
+  if (c <= 0) dot.classList.add('zero');
+  else if (c <= 10) dot.classList.add('low');
+}
+
+async function authFetch(url, opts = {}) {
+  if (Auth.isLoggedIn()) {
+    opts.headers = opts.headers || {};
+    opts.headers['Authorization'] = `Bearer ${Auth.token}`;
+  }
+  const res = await fetch(url, opts);
+  if (res.status === 401 || res.status === 402) {
+    if (res.status === 402) {
+      const j = await res.json().catch(() => ({}));
+      showToast(j.detail || 'Insufficient credits.');
+    } else {
+      Auth.clear();
+      showAuthOverlay();
+      showToast('Session expired. Please log in again.');
+    }
+  }
+  return res;
+}
+
+function showAuthOverlay() {
+  $('authOverlay').classList.remove('hidden');
+}
+function hideAuthOverlay() {
+  $('authOverlay').classList.add('hidden');
+}
+function showAuthError(msg) {
+  const el = $('authError');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function clearAuthError() {
+  $('authError').classList.remove('visible');
+}
+
+async function handleAuthSubmit() {
+  const username = $('authUsername').value.trim();
+  const password = $('authPassword').value.trim();
+  clearAuthError();
+  $('authSubmitBtn').disabled = true;
+  try {
+    await Auth.login(username, password);
+    hideAuthOverlay();
+    $('authUsername').value = '';
+    $('authPassword').value = '';
+    LibraryStore.initFromHF().then(() => { renderLibrary(); renderEditorLibraryGrid(); });
+  } catch (err) {
+    showAuthError(err.message);
+  } finally {
+    $('authSubmitBtn').disabled = false;
+  }
+}
+
+/* ── Auth UI bindings ─────────────────────────────────────── */
+$('authSubmitBtn').addEventListener('click', handleAuthSubmit);
+$('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuthSubmit(); });
+$('authUsername').addEventListener('keydown', e => { if (e.key === 'Enter') $('authPassword').focus(); });
+$('logoutBtn').addEventListener('click', () => Auth.logout());
 
 /* ── Screen switch ────────────────────────────────────────── */
 function switchScreen(name) {
@@ -2026,9 +2349,13 @@ $('generateBtn').addEventListener('click', async () => {
       fd.append(`object_image_${i+1}`, new File([blob], `obj${i+1}.png`, { type: 'image/png' }));
     }
 
-    const res  = await fetch('/edit', { method: 'POST', body: fd });
+    const res  = await authFetch('/edit', { method: 'POST', body: fd });
     const json = await res.json();
     if (!res.ok) throw new Error(json.detail || `Error ${res.status}`);
+    if (json.credits !== undefined) {
+      Auth._credits = json.credits;
+      updateCreditDisplay();
+    }
 
     const b64      = json.images_b64?.length ? json.images_b64[0] : json.image_b64;
     const finalUrl = `data:image/${json.format};base64,${b64}`;
@@ -2118,11 +2445,84 @@ function setSyncStatus(state) {
 updateChips();
 rebuildPrompt();
 updateOriginalBtn();
-// Load from HF (renders library after load)
-LibraryStore.initFromHF().then(() => {
-  renderLibrary();
-  renderEditorLibraryGrid();
-});
+
+async function appInit() {
+  Auth.restore();
+  if (Auth.isLoggedIn()) {
+    const valid = await Auth.verify();
+    if (!valid) {
+      showAuthOverlay();
+      return;
+    }
+    hideAuthOverlay();
+    LibraryStore.initFromHF().then(() => {
+      renderLibrary();
+      renderEditorLibraryGrid();
+    });
+  } else {
+    showAuthOverlay();
+  }
+}
+appInit();
+// Cookie consent check
+if (localStorage.getItem('cookie_consent')) {
+  document.getElementById('cookieBanner').style.display = 'none';
+}
 </script>
+
+<!-- ══ DISCLAIMER MODAL ══ -->
+<div id="disclaimerModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; overflow-y:auto;">
+  <div style="max-width:700px; margin:60px auto; background:#fff; border-radius:12px; padding:40px; color:#202020; font-size:13px; line-height:1.7;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+      <h2 style="font-size:20px; margin:0">AI Visualization Disclaimer</h2>
+      <button onclick="document.getElementById('disclaimerModal').style.display='none'" style="background:none; border:none; font-size:24px; cursor:pointer; color:#888;">&times;</button>
+    </div>
+    <p style="color:#888; font-size:11px;">Last Updated: July 13, 2026</p>
+    <p>NEIV is an AI-powered visualization platform designed to help users preview furniture and interior design concepts. By using NEIV, you acknowledge and agree to the following:</p>
+    <ol style="padding-left:20px;">
+      <li><strong>Visualization Only.</strong> The images generated by NEIV are intended solely for conceptual visualization and design inspiration. They should not be considered an exact representation of the final product or installation.</li>
+      <li><strong>No Measurement or Scale Accuracy.</strong> NEIV does not guarantee the accuracy of dimensions, measurements, scale, proportions, furniture spacing, object positioning, or room layouts. Generated images must not be relied upon for manufacturing, construction, installation, interior planning, or purchasing decisions.</li>
+      <li><strong>Product Appearance.</strong> Colors, textures, materials, finishes, lighting conditions, shadows, and reflections generated by AI may differ from actual products. The final appearance may vary significantly.</li>
+      <li><strong>Verify Before Purchase.</strong> Users are solely responsible for verifying all product specifications, measurements, compatibility, and installation requirements before making any purchase or business decision.</li>
+      <li><strong>AI Limitations.</strong> As an AI system, NEIV may occasionally generate inaccurate, incomplete, distorted, or unrealistic visualizations. While we continuously improve our technology, we do not guarantee that every output will be accurate or error-free.</li>
+      <li><strong>Professional Advice.</strong> NEIV is not a substitute for professional advice from interior designers, architects, engineers, contractors, or other qualified professionals.</li>
+      <li><strong>User Responsibility.</strong> Users assume full responsibility for any actions or decisions taken based on AI-generated content.</li>
+      <li><strong>Limitation of Liability.</strong> To the fullest extent permitted by law, NEIV, its owners, employees, partners, and affiliates shall not be liable for any direct, indirect, incidental, consequential, or financial loss arising from the use of AI-generated visualizations.</li>
+      <li><strong>Uploaded Content.</strong> Users must ensure they own or have the necessary rights to upload images, furniture photographs, logos, or other content. Users remain responsible for all uploaded material.</li>
+      <li><strong>Updates.</strong> This disclaimer may be updated from time to time without prior notice. Continued use of NEIV constitutes acceptance of the latest version.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ══ COOKIE POLICY MODAL ══ -->
+<div id="cookieModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; overflow-y:auto;">
+  <div style="max-width:700px; margin:60px auto; background:#fff; border-radius:12px; padding:40px; color:#202020; font-size:13px; line-height:1.7;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+      <h2 style="font-size:20px; margin:0">Cookie Policy</h2>
+      <button onclick="document.getElementById('cookieModal').style.display='none'" style="background:none; border:none; font-size:24px; cursor:pointer; color:#888;">&times;</button>
+    </div>
+    <p style="color:#888; font-size:11px;">Last Updated: July 13, 2026</p>
+    <p>NEIV uses cookies and similar technologies to improve your experience, provide secure access, and enhance our services.</p>
+    <p><strong>Essential Cookies.</strong> These cookies are necessary for user authentication, secure login, session management, platform security, and fraud prevention. These cookies cannot be disabled as they are required for the platform to function.</p>
+    <p><strong>Functional Cookies.</strong> These cookies help us remember language preferences, user settings, dashboard preferences, and recently used features.</p>
+    <p><strong>Analytics Cookies.</strong> We use analytics tools to understand page visits, feature usage, performance metrics, user interactions, and error reports. This information helps us improve NEIV.</p>
+    <p><strong>Third-Party Cookies.</strong> Some third-party providers (such as payment gateways, analytics providers, cloud services, or authentication providers) may place cookies when you use our platform.</p>
+    <p><strong>Managing Cookies.</strong> You can manage or disable non-essential cookies through your browser settings. Please note that disabling certain cookies may affect the functionality of the platform.</p>
+    <p><strong>Consent.</strong> By continuing to use NEIV, you consent to the use of cookies as described in this Cookie Policy.</p>
+  </div>
+</div>
+
+<!-- ══ COOKIE CONSENT BANNER ══ -->
+<div id="cookieBanner" style="display:flex; position:fixed; bottom:0; left:0; right:0; background:#1a1a1a; color:#ccc; font-size:12px; padding:12px 24px; justify-content:space-between; align-items:center; z-index:9998; gap:16px; flex-wrap:wrap;">
+  <span>This site uses essential cookies for authentication and functional cookies to improve your experience. <a href="#" onclick="document.getElementById('cookieModal').style.display='block';return false" style="color:#ea2804;">Learn more</a></span>
+  <button onclick="document.getElementById('cookieBanner').style.display='none'; localStorage.setItem('cookie_consent','1')" style="background:#ea2804;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap;">Accept</button>
+</div>
+
+<footer style="flex-shrink:0; text-align:center; padding:8px 16px; font-size:10px; color:var(--mute); border-top:1px solid var(--hairline); background:var(--canvas); z-index:5;">
+  <a href="#" onclick="document.getElementById('disclaimerModal').style.display='block';return false" style="color:inherit;margin:0 10px;">Disclaimer</a>
+  <a href="#" onclick="document.getElementById('cookieModal').style.display='block';return false" style="color:inherit;margin:0 10px;">Cookie Policy</a>
+  <span style="margin:0 10px;">&copy; 2026 NEIV</span>
+</footer>
+
 </body>
 </html>
