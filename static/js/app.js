@@ -264,10 +264,13 @@ function updateCreditDisplay() {
   const c = Auth._credits;
   $('creditCount').textContent = Auth.isLoggedIn() ? c : '--';
   const dot = $('creditDot');
+  const badge = $('creditBadge');
   dot.classList.remove('low', 'zero');
+  badge.classList.remove('warning', 'danger');
   if (!Auth.isLoggedIn()) return;
-  if (c <= 0) dot.classList.add('zero');
-  else if (c <= 10) dot.classList.add('low');
+  if (c <= 0) { dot.classList.add('zero'); badge.classList.add('danger'); }
+  else if (c <= 5) { dot.classList.add('low'); badge.classList.add('danger'); }
+  else if (c <= 15) { badge.classList.add('warning'); }
 }
 
 async function authFetch(url, opts = {}) {
@@ -863,7 +866,11 @@ $('generateBtn').addEventListener('click', async () => {
   const genStart = Date.now();
   const elapsedInterval = setInterval(() => {
     const secs = Math.floor((Date.now() - genStart) / 1000);
-    $('loader').querySelector('.loader-desc').textContent = `Generating... ${secs}s elapsed`;
+    const mins = Math.floor(secs / 60);
+    const remaining = Math.max(0, 120 - secs);
+    const etaText = secs < 30 ? 'Analyzing scene...' : `Generating... ${mins > 0 ? mins + 'm ' : ''}${secs % 60}s elapsed · ~${remaining}s remaining`;
+    const loaderDesc = document.getElementById('loaderDesc');
+    if (loaderDesc) loaderDesc.textContent = etaText;
   }, 1000);
 
   try {
@@ -902,7 +909,8 @@ $('generateBtn').addEventListener('click', async () => {
   } finally {
     clearInterval(elapsedInterval);
     $('loader').classList.remove('visible');
-    $('loader').querySelector('.loader-desc').textContent = 'Applying photorealistic constraints...';
+    const loaderDesc = document.getElementById('loaderDesc');
+    if (loaderDesc) loaderDesc.textContent = 'This usually takes 60-120 seconds';
     btn.disabled = false;
     btn.textContent = 'Process Render';
   }
