@@ -142,13 +142,10 @@ async def edit_room(
             pil_objects[0].save(buf, format="PNG")
             reference_png = buf.getvalue()
         elif len(pil_objects) > 1:
-            if USE_MODEL_LABS:
-                buf = BytesIO()
-                pil_objects[0].save(buf, format="PNG")
-                reference_png = buf.getvalue()
-            else:
-                reference_png = build_composite(pil_objects, tags)
-                (UPLOADS_DIR / f"{room_id}_composite.png").write_bytes(reference_png)
+            # Interior Mixer accepts one object image, so keep all references in
+            # one labelled sheet and process them in a single generation.
+            reference_png = build_composite(pil_objects, tags)
+            (UPLOADS_DIR / f"{room_id}_composite.png").write_bytes(reference_png)
 
         if USE_MODEL_LABS:
             if not reference_png:

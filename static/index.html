@@ -209,6 +209,8 @@ body, html {
 }
 .mini-preview.visible { display: flex; }
 .mini-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: var(--rounded-xs); }
+.asset-thumb-row { display: flex; gap: 4px; flex-wrap: wrap; max-width: 210px; }
+.asset-thumb-row img { width: 42px; height: 42px; }
 .mini-preview-info { flex: 1; }
 .mini-preview-name { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
 .mini-preview-action { font-size: 12px; color: var(--mute); cursor: pointer; text-decoration: underline; }
@@ -329,6 +331,37 @@ body, html {
 }
 .tag:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
 .tag.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+/* Simple explanations for the mode buttons */
+#modeTags { gap: 7px; }
+#modeTags .mode-option { position: relative; display: inline-block; }
+#modeTags .mode-option > .tag { width: auto; }
+.mode-help {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  top: calc(100% + 7px);
+  width: 210px;
+  padding: 9px 11px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--rounded-sm);
+  background: var(--surface-card);
+  color: var(--charcoal);
+  box-shadow: 0 8px 22px rgba(32,32,32,0.14);
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-3px);
+  transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+  pointer-events: none;
+}
+.mode-option:hover .mode-help,
+.mode-option:focus-within .mode-help {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
 
 /* Chips row (selected objects) */
 .chips-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: var(--sp-md); min-height: 24px; }
@@ -1229,7 +1262,7 @@ body, html {
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <h2 class="sidebar-title">Pipeline Configuration</h2>
+          <h2 class="sidebar-title">Create your image</h2>
       </div>
 
       <!-- Step 0: Mode Selector -->
@@ -1239,26 +1272,26 @@ body, html {
           <span class="step-label">Choose what to do</span>
         </div>
         <div class="tags-row" id="modeTags">
-          <button class="tag active" data-mode="edit" data-requires-obj="true">Interior Mixer</button>
-          <button class="tag" data-mode="make" data-requires-obj="false">Interior Make</button>
-          <button class="tag" data-mode="decorate" data-requires-obj="false">Room Decorator</button>
-          <button class="tag" data-mode="floor-plan" data-requires-obj="false">Floor Planning</button>
-          <button class="tag" data-mode="remove-object" data-requires-obj="false">Object Removal</button>
-          <button class="tag" data-mode="scenario" data-requires-obj="false">Scenario Change</button>
-          <button class="tag" data-mode="sketch" data-requires-obj="false">Sketch Rendering</button>
-          <button class="tag" data-mode="exterior" data-requires-obj="false">Exterior Restore</button>
+          <span class="mode-option"><button class="tag active" data-mode="edit" data-requires-obj="true">Add or replace item</button><span class="mode-help">Add a furniture image to your room, or replace an existing item with it.</span></span>
+          <span class="mode-option"><button class="tag" data-mode="make" data-requires-obj="false">Redesign room</button><span class="mode-help">Give the room a new overall style using your written description.</span></span>
+          <span class="mode-option"><button class="tag" data-mode="decorate" data-requires-obj="false">Decorate room</button><span class="mode-help">Add decor and furniture ideas to the room from your prompt.</span></span>
+          <span class="mode-option"><button class="tag" data-mode="floor-plan" data-requires-obj="false">Create floor plan</button><span class="mode-help">Turn the room image into a visual floor-plan layout.</span></span>
+          <span class="mode-option"><button class="tag" data-mode="remove-object" data-requires-obj="false">Remove an item</button><span class="mode-help">Describe the furniture or object you want removed.</span></span>
+          <span class="mode-option"><button class="tag" data-mode="scenario" data-requires-obj="false">Change surroundings</button><span class="mode-help">Change the scene or environment, such as snow, beach, forest, or city.</span></span>
+          <span class="mode-option"><button class="tag" data-mode="sketch" data-requires-obj="false">Turn sketch into photo</button><span class="mode-help">Turn an architectural sketch into a realistic image.</span></span>
+          <span class="mode-option"><button class="tag" data-mode="exterior" data-requires-obj="false">Improve exterior</button><span class="mode-help">Restore or improve the outside of a building.</span></span>
         </div>
       </div>
 
       <!-- Step 1: Room image -->
       <div class="step-container" id="step1">
         <div class="step-header">
-          <span class="step-num">01 /</span>
-          <span class="step-label">Environment Architecture</span>
+          <span class="step-num">02 /</span>
+           <span class="step-label">Room photo</span>
         </div>
         <div class="drop-zone" id="roomZone">
           <input type="file" id="roomInput" accept="image/*" />
-          <div class="drop-text"><strong>UPLOAD SCENE</strong>Drop main room photo here</div>
+           <div class="drop-text"><strong>UPLOAD ROOM PHOTO</strong>Drop your room image here</div>
         </div>
         <div class="mini-preview" id="roomMini">
           <img id="roomThumb" src="" alt="" />
@@ -1272,9 +1305,9 @@ body, html {
       <!-- Step 2: Subject assets -->
       <div class="step-container disabled" id="step2">
         <div class="step-header">
-          <span class="step-num">02 /</span>
-          <span class="step-label">Subject Asset</span>
-          <span class="step-badge" id="assetBadge"></span>
+          <span class="step-num">03 /</span>
+         <span class="step-label">Furniture or items (up to 4)</span>
+           <span class="step-badge" id="assetBadge"></span>
         </div>
 
         <div class="asset-toggle">
@@ -1285,16 +1318,16 @@ body, html {
         <!-- Upload mode -->
         <div id="asset-upload-mode">
           <div class="drop-zone" id="objZone">
-            <input type="file" id="objInput" accept="image/*" />
-            <div class="drop-text"><strong>UPLOAD OBJECT</strong>Drop reference furniture (optional)</div>
-          </div>
-          <div class="mini-preview" id="objMini">
-            <img id="objThumb" src="" alt="" />
-            <div class="mini-preview-info">
-              <div class="mini-preview-name">Asset Attached</div>
-              <div class="mini-preview-action" id="objRemove">Remove Asset</div>
-            </div>
-          </div>
+             <input type="file" id="objInput" accept="image/*" multiple />
+             <div class="drop-text"><strong>UPLOAD FURNITURE</strong>Choose up to 4 items to add or use</div>
+           </div>
+           <div class="mini-preview" id="objMini">
+             <div class="asset-thumb-row" id="objThumbs"></div>
+             <div class="mini-preview-info">
+               <div class="mini-preview-name" id="objPreviewName">Items attached</div>
+               <div class="mini-preview-action" id="objRemove">Remove items</div>
+             </div>
+           </div>
         </div>
 
         <!-- Library mode -->
@@ -1306,8 +1339,8 @@ body, html {
       <!-- Step 3: Prompt -->
       <div class="step-container disabled" id="step3">
         <div class="step-header">
-          <span class="step-num">03 /</span>
-          <span class="step-label">Editorial Directive</span>
+          <span class="step-num">04 /</span>
+           <span class="step-label">What should change?</span>
         </div>
 
         <!-- Selected objects chips -->
@@ -1322,10 +1355,10 @@ body, html {
         <div class="tag-group">
           <div class="tag-group-label">Action <span class="tag-group-hint">— optional, click again to deselect</span></div>
           <div class="tags-row" id="action-tags">
-            <button class="tag" data-group="action">Add</button>
-            <button class="tag" data-group="action">Replace</button>
-            <button class="tag" data-group="action">Remove</button>
-            <button class="tag" data-group="action">Restyle</button>
+             <button class="tag" data-group="action">Add it</button>
+             <button class="tag" data-group="action">Replace it</button>
+             <button class="tag" data-group="action">Remove it</button>
+             <button class="tag" data-group="action">Change its style</button>
           </div>
         </div>
 
@@ -1457,7 +1490,7 @@ body, html {
     <!-- Floating bar -->
     <div class="float-bar hidden" id="floatBar">
       <div class="float-chips" id="floatChips"></div>
-      <div class="float-count" id="floatCount">0 / 5</div>
+       <div class="float-count" id="floatCount">0 / 4</div>
       <button class="float-clear" id="floatClear">✕ Clear</button>
       <button class="btn-float-generate" id="libGenerateBtn">
         Generate
@@ -1639,7 +1672,7 @@ const S = {
   editorSelectedIds: new Set(),
   assetMode:         'upload',
   baseBlob: null, baseURL: null,
-  uploadedObjBlob: null, uploadedObjURL: null,
+  uploadedObjBlobs: [], uploadedObjURLs: [],
   userEditedPrompt:  false,
   // per-asset tag config — keyed by asset id
   assetConfigs:      new Map(),  // id -> { action, styles: Set, placement }
@@ -1651,7 +1684,7 @@ const S = {
   getEditorSelected() { return LibraryStore.getAssets().filter(a => this.editorSelectedIds.has(a.id)); },
   getConfig(id) {
     if (!this.assetConfigs.has(id)) {
-      this.assetConfigs.set(id, { action: 'Add', placement: '' });
+      this.assetConfigs.set(id, { action: 'Add it', placement: '' });
     }
     return this.assetConfigs.get(id);
   },
@@ -2004,7 +2037,7 @@ function renderLibCard(a, selected) {
 
 function toggleLibSelect(id) {
   if (S.libSelectedIds.has(id)) { S.libSelectedIds.delete(id); }
-  else { if (S.libSelectedIds.size >= 5) { showToast('Max 5 objects — deselect one first.'); return; } S.libSelectedIds.add(id); }
+  else { if (S.libSelectedIds.size >= 4) { showToast('You can choose up to 4 items.'); return; } S.libSelectedIds.add(id); }
   renderLibrary();
   updateFloatBar();
 }
@@ -2020,11 +2053,11 @@ function updateFloatBar() {
   const bar = $('floatBar');
   if (sel.length === 0) { bar.classList.add('hidden'); return; }
   bar.classList.remove('hidden');
-  $('floatCount').textContent = `${sel.length} / 5`;
+  $('floatCount').textContent = `${sel.length} / 4`;
   $('floatBadge').textContent = sel.length;
   $('floatChips').innerHTML = sel.slice(0,4).map(a =>
     `<div class="float-chip"><img src="${a.dataUrl}" alt="" />${escHtml(a.name)}</div>`
-  ).join('') + (sel.length > 4 ? `<div class="float-chip">+${sel.length-4} more</div>` : '');
+  ).join('');
 }
 
 $('floatClear').addEventListener('click', () => { S.libSelectedIds.clear(); renderLibrary(); updateFloatBar(); });
@@ -2059,13 +2092,18 @@ function setBase(blob, url) {
 }
 
 function setObj(blob, url) {
-  S.uploadedObjBlob = blob; S.uploadedObjURL = url;
-  if (blob) {
+  const blobs = blob ? (Array.isArray(blob) ? blob : [blob]) : [];
+  const urls = url ? (Array.isArray(url) ? url : [url]) : [];
+  S.uploadedObjBlobs = blobs;
+  S.uploadedObjURLs = urls;
+  if (blobs.length) {
     $('objZone').style.display = 'none';
-    $('objThumb').src = url;
+    $('objThumbs').innerHTML = urls.map(src => `<img src="${src}" alt="Furniture reference" />`).join('');
+    $('objPreviewName').textContent = `${blobs.length} item${blobs.length === 1 ? '' : 's'} attached`;
     $('objMini').classList.add('visible');
   } else {
     $('objZone').style.display = '';
+    $('objThumbs').innerHTML = '';
     $('objMini').classList.remove('visible');
   }
   updateChips(); rebuildPrompt(); syncCanvas();
@@ -2081,8 +2119,11 @@ $('roomInput').addEventListener('change', async e => {
 });
 $('roomRemove').addEventListener('click', () => { $('roomInput').value=''; setBase(null,null); $('resultView').classList.remove('visible'); });
 $('objInput').addEventListener('change', async e => {
-  const f = e.target.files[0]; if (!f) return;
-  setObj(f, await readFile(f));
+  const files = Array.from(e.target.files || []).slice(0, 4);
+  if (!files.length) return;
+  if (e.target.files.length > 4) showToast('Only the first 4 items were selected.');
+  const urls = await Promise.all(files.map(readFile));
+  setObj(files, urls);
 });
 $('objRemove').addEventListener('click', () => { $('objInput').value=''; setObj(null,null); });
 
@@ -2092,9 +2133,9 @@ function syncCanvas() {
     $('emptyState').style.display = 'none';
     $('canvasMainImg').src = S.baseURL;
     $('viewport').classList.add('visible');
-    const hasRef = S.assetMode === 'upload' ? !!S.uploadedObjURL : S.editorSelectedIds.size > 0;
-    if (hasRef) {
-      const src = S.assetMode === 'upload' ? S.uploadedObjURL : (S.getEditorSelected()[0]?.dataUrl || '');
+     const hasRef = S.assetMode === 'upload' ? S.uploadedObjURLs.length > 0 : S.editorSelectedIds.size > 0;
+     if (hasRef) {
+       const src = S.assetMode === 'upload' ? S.uploadedObjURLs[0] : (S.getEditorSelected()[0]?.dataUrl || '');
       $('canvasAssetImg').src = src;
       $('viewToggles').classList.add('visible');
     } else {
@@ -2144,7 +2185,7 @@ document.querySelectorAll('.asset-toggle-btn').forEach(b => b.addEventListener('
 
 function updateAssetBadge() {
   const badge = $('assetBadge');
-  const count = S.assetMode === 'library' ? S.editorSelectedIds.size : (S.uploadedObjBlob ? 1 : 0);
+  const count = S.assetMode === 'library' ? S.editorSelectedIds.size : S.uploadedObjBlobs.length;
   if (count > 0) { badge.textContent = `${count} selected`; badge.style.display = ''; }
   else badge.style.display = 'none';
 }
@@ -2188,7 +2229,7 @@ function renderEditorLibraryGrid() {
       thumb.addEventListener('click', () => {
         const id = thumb.dataset.id;
         if (S.editorSelectedIds.has(id)) { S.editorSelectedIds.delete(id); }
-        else { if (S.editorSelectedIds.size >= 5) { showToast('Max 5 objects.'); return; } S.editorSelectedIds.add(id); }
+         else { if (S.editorSelectedIds.size >= 4) { showToast('You can choose up to 4 items.'); return; } S.editorSelectedIds.add(id); }
         S.userEditedPrompt = false;
         updateAssetBadge(); updateChips(); rebuildPrompt(); syncCanvas(); renderEditorLibraryGrid();
       });
@@ -2200,16 +2241,21 @@ function renderEditorLibraryGrid() {
 /* ── Prompt Panel ─────────────────────────────────────────── */
 function getActiveAssets() {
   if (S.assetMode === 'library') return S.getEditorSelected();
-  if (S.uploadedObjBlob) return [{ id:'__upload', name:'Uploaded', dataUrl: S.uploadedObjURL, objectTag:'Object' }];
-  return [];
+  return S.uploadedObjBlobs.map((blob, index) => ({
+    id: `__upload_${index}`,
+    name: `Item ${index + 1}`,
+    dataUrl: S.uploadedObjURLs[index],
+    objectTag: `Item ${index + 1}`,
+    blob,
+  }));
 }
 
 /* Which tag groups are relevant per action */
 const ACTION_NEEDS = {
-  'Add':     { placement: true  },
-  'Replace': { placement: false },
-  'Remove':  { placement: false },
-  'Restyle': { placement: false },
+  'Add it':            { placement: true  },
+  'Replace it':       { placement: false },
+  'Remove it':        { placement: false },
+  'Change its style': { placement: false },
   '':        { placement: true  },  // no action selected — show placement
 };
 
@@ -2298,16 +2344,16 @@ function buildSentence(name, cfg) {
   const place = cfg.placement || '';
 
   switch (cfg.action) {
-    case 'Add':
+    case 'Add it':
       return `Add the reference ${name} to the room${place ? ', positioned ' + place : ''}.`;
 
-    case 'Replace':
+    case 'Replace it':
       return `Replace the existing ${name} with the reference ${name}, keeping it in the same location.`;
 
-    case 'Remove':
+    case 'Remove it':
       return `Remove the ${name} from the room and inpaint the exposed background.`;
 
-    case 'Restyle':
+    case 'Change its style':
       return `Restyle the existing ${name} using the reference as the new finish — keep its position and size unchanged.`;
 
     case '':
@@ -2429,9 +2475,9 @@ $('generateBtn').addEventListener('click', async () => {
     if (needsObj) {
       const objectTags = assets.map(a => a.objectTag || a.name);
       fd.append('object_tags', JSON.stringify(objectTags));
-      for (let i = 0; i < Math.min(assets.length, 5); i++) {
+       for (let i = 0; i < Math.min(assets.length, 4); i++) {
         const a    = assets[i];
-        const blob = a.id === '__upload' ? S.uploadedObjBlob : dataUrlToBlob(a.dataUrl);
+         const blob = a.blob || dataUrlToBlob(a.dataUrl);
         fd.append(`object_image_${i+1}`, new File([blob], `obj${i+1}.png`, { type: 'image/png' }));
       }
     }
