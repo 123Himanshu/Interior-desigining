@@ -15,6 +15,9 @@ from app.routes.auth import get_current_user
 from app.services.users import charge_credit, refund_credit
 from app.services.generation import (
     prepare_image, generate_modelslab, generate_openai,
+    generate_interior_make, generate_room_decorator, generate_floor_plan,
+    generate_object_removal, generate_scenario_change, generate_sketch_render,
+    generate_exterior_restore, SCENARIOS,
 )
 from app.services.backup import schedule_backup
 from app.config import USE_MODEL_LABS
@@ -189,3 +192,365 @@ async def edit_room(
         "format": "png",
         "credits": credits,
     })
+
+
+# ── Interior Make (Room Redesign) ──────────────────────────────────────────
+@router.post("/make")
+async def make_interior(
+    user: dict = Depends(get_current_user),
+    room_image: UploadFile = File(...),
+    prompt: str = Form(...),
+    negative_prompt: str = Form("bad quality, blurry, distorted"),
+    strength: float = Form(5.0),
+    specific_object: str = Form(""),
+):
+    prompt = prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+    credits = charge_credit(user["id"])
+    if credits is None:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    room_id = uuid.uuid4().hex
+    try:
+        room_bytes = await room_image.read()
+        room_png = prepare_image(room_bytes)
+        (UPLOADS_DIR / f"{room_id}_room.png").write_bytes(room_png)
+
+        if USE_MODEL_LABS:
+            result_b64 = generate_interior_make(room_png, prompt, negative_prompt, strength, specific_object)
+        else:
+            final_prompt = build_prompt(prompt, [])
+            result_b64 = generate_openai(room_png, None, final_prompt, f"{room_id}_room.png")
+    except HTTPException:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        raise
+    except Exception as e:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=str(e)[:200] or "Generation failed")
+    finally:
+        for f in UPLOADS_DIR.glob(f"{room_id}_*"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+    schedule_backup()
+    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+
+
+# ── Room Decorator ─────────────────────────────────────────────────────────
+@router.post("/decorate")
+async def decorate_room(
+    user: dict = Depends(get_current_user),
+    room_image: UploadFile = File(...),
+    prompt: str = Form(...),
+    negative_prompt: str = Form("bad quality, blurry, distorted"),
+    strength: float = Form(5.0),
+    specific_object: str = Form(""),
+):
+    prompt = prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+    credits = charge_credit(user["id"])
+    if credits is None:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    room_id = uuid.uuid4().hex
+    try:
+        room_bytes = await room_image.read()
+        room_png = prepare_image(room_bytes)
+        (UPLOADS_DIR / f"{room_id}_room.png").write_bytes(room_png)
+
+        if USE_MODEL_LABS:
+            result_b64 = generate_room_decorator(room_png, prompt, negative_prompt, strength, specific_object)
+        else:
+            final_prompt = build_prompt(prompt, [])
+            result_b64 = generate_openai(room_png, None, final_prompt, f"{room_id}_room.png")
+    except HTTPException:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        raise
+    except Exception as e:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=str(e)[:200] or "Generation failed")
+    finally:
+        for f in UPLOADS_DIR.glob(f"{room_id}_*"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+    schedule_backup()
+    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+
+
+# ── Floor Planning ─────────────────────────────────────────────────────────
+@router.post("/floor-plan")
+async def floor_plan(
+    user: dict = Depends(get_current_user),
+    room_image: UploadFile = File(...),
+    prompt: str = Form(...),
+    negative_prompt: str = Form("bad quality, blurry, distorted"),
+    strength: float = Form(5.0),
+):
+    prompt = prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+    credits = charge_credit(user["id"])
+    if credits is None:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    room_id = uuid.uuid4().hex
+    try:
+        room_bytes = await room_image.read()
+        room_png = prepare_image(room_bytes)
+        (UPLOADS_DIR / f"{room_id}_room.png").write_bytes(room_png)
+
+        if USE_MODEL_LABS:
+            result_b64 = generate_floor_plan(room_png, prompt, negative_prompt, strength)
+        else:
+            raise HTTPException(status_code=400, detail="Floor planning requires ModelsLab API")
+    except HTTPException:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        raise
+    except Exception as e:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=str(e)[:200] or "Generation failed")
+    finally:
+        for f in UPLOADS_DIR.glob(f"{room_id}_*"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+    schedule_backup()
+    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+
+
+# ── Object Removal ─────────────────────────────────────────────────────────
+@router.post("/remove-object")
+async def remove_object(
+    user: dict = Depends(get_current_user),
+    room_image: UploadFile = File(...),
+    object_name: str = Form(...),
+):
+    object_name = object_name.strip()
+    if not object_name:
+        raise HTTPException(status_code=400, detail="Object name cannot be empty")
+
+    credits = charge_credit(user["id"])
+    if credits is None:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    room_id = uuid.uuid4().hex
+    try:
+        room_bytes = await room_image.read()
+        room_png = prepare_image(room_bytes)
+        (UPLOADS_DIR / f"{room_id}_room.png").write_bytes(room_png)
+
+        if USE_MODEL_LABS:
+            result_b64 = generate_object_removal(room_png, object_name)
+        else:
+            raise HTTPException(status_code=400, detail="Object removal requires ModelsLab API")
+    except HTTPException:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        raise
+    except Exception as e:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=str(e)[:200] or "Generation failed")
+    finally:
+        for f in UPLOADS_DIR.glob(f"{room_id}_*"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+    schedule_backup()
+    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+
+
+# ── Scenario Changer ──────────────────────────────────────────────────────
+@router.post("/scenario")
+async def change_scenario(
+    user: dict = Depends(get_current_user),
+    room_image: UploadFile = File(...),
+    prompt: str = Form(...),
+    scenario: str = Form(...),
+    negative_prompt: str = Form("bad quality, blurry, distorted"),
+    strength: float = Form(5.0),
+):
+    prompt = prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+    if scenario not in SCENARIOS:
+        raise HTTPException(status_code=400, detail=f"Invalid scenario. Must be one of: {', '.join(SCENARIOS)}")
+
+    credits = charge_credit(user["id"])
+    if credits is None:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    room_id = uuid.uuid4().hex
+    try:
+        room_bytes = await room_image.read()
+        room_png = prepare_image(room_bytes)
+        (UPLOADS_DIR / f"{room_id}_room.png").write_bytes(room_png)
+
+        if USE_MODEL_LABS:
+            result_b64 = generate_scenario_change(room_png, prompt, scenario, negative_prompt, strength)
+        else:
+            raise HTTPException(status_code=400, detail="Scenario changer requires ModelsLab API")
+    except HTTPException:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        raise
+    except Exception as e:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=str(e)[:200] or "Generation failed")
+    finally:
+        for f in UPLOADS_DIR.glob(f"{room_id}_*"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+    schedule_backup()
+    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+
+
+# ── Sketch Rendering ──────────────────────────────────────────────────────
+@router.post("/sketch")
+async def render_sketch(
+    user: dict = Depends(get_current_user),
+    room_image: UploadFile = File(...),
+    prompt: str = Form(...),
+    negative_prompt: str = Form("bad quality, blurry, distorted"),
+    strength: float = Form(5.0),
+):
+    prompt = prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+    credits = charge_credit(user["id"])
+    if credits is None:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    room_id = uuid.uuid4().hex
+    try:
+        room_bytes = await room_image.read()
+        room_png = prepare_image(room_bytes)
+        (UPLOADS_DIR / f"{room_id}_room.png").write_bytes(room_png)
+
+        if USE_MODEL_LABS:
+            result_b64 = generate_sketch_render(room_png, prompt, negative_prompt, strength)
+        else:
+            raise HTTPException(status_code=400, detail="Sketch rendering requires ModelsLab API")
+    except HTTPException:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        raise
+    except Exception as e:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=str(e)[:200] or "Generation failed")
+    finally:
+        for f in UPLOADS_DIR.glob(f"{room_id}_*"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+    schedule_backup()
+    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+
+
+# ── Exterior Restorer ─────────────────────────────────────────────────────
+@router.post("/exterior")
+async def restore_exterior(
+    user: dict = Depends(get_current_user),
+    room_image: UploadFile = File(...),
+    prompt: str = Form(...),
+    negative_prompt: str = Form("bad quality, blurry, distorted"),
+    strength: float = Form(5.0),
+):
+    prompt = prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+    credits = charge_credit(user["id"])
+    if credits is None:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    room_id = uuid.uuid4().hex
+    try:
+        room_bytes = await room_image.read()
+        room_png = prepare_image(room_bytes)
+        (UPLOADS_DIR / f"{room_id}_room.png").write_bytes(room_png)
+
+        if USE_MODEL_LABS:
+            result_b64 = generate_exterior_restore(room_png, prompt, negative_prompt, strength)
+        else:
+            raise HTTPException(status_code=400, detail="Exterior restorer requires ModelsLab API")
+    except HTTPException:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        raise
+    except Exception as e:
+        try:
+            refund_credit(user["id"])
+        except Exception:
+            pass
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=str(e)[:200] or "Generation failed")
+    finally:
+        for f in UPLOADS_DIR.glob(f"{room_id}_*"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+    schedule_backup()
+    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
