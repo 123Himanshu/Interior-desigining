@@ -9,6 +9,7 @@ from app.config import (
 )
 
 ML_BASE = "https://modelslab.com/api/v6/interior"
+ML_API_BASE = "https://modelslab.com/api/v6"
 
 
 def prepare_image(file_bytes: bytes) -> bytes:
@@ -75,6 +76,30 @@ def _extract_output(item, req) -> str:
 
 def _b64(data: bytes) -> str:
     return base64.b64encode(data).decode("ascii")
+
+
+def _upload_to_modelslab(data: bytes) -> str:
+    """Upload an image and return the temporary URL required by Interior APIs."""
+    import requests as req
+
+    resp = req.post(
+        f"{ML_API_BASE}/base64_to_url",
+        json={
+            "key": MODEL_LABS_KEY,
+            "base64_string": f"data:image/png;base64,{_b64(data)}",
+        },
+        timeout=120,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"ModelsLab image upload HTTP {resp.status_code}: {resp.text[:300]}")
+
+    payload = resp.json()
+    if (payload.get("status") or "").lower() != "success":
+        raise RuntimeError(f"ModelsLab image upload failed: {payload.get('message', payload)}")
+    urls = payload.get("output") or []
+    if not urls or not isinstance(urls[0], str):
+        raise RuntimeError("ModelsLab image upload returned no URL")
+    return urls[0]
 
 
 def _post_and_poll(endpoint: str, payload: dict) -> str:
@@ -156,8 +181,8 @@ def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, w
     if not object_png:
         raise RuntimeError("Interior-Mixer requires an object image.")
 
-    room_b64 = _b64(room_png)
-    obj_b64 = _b64(object_png)
+    room_url = _upload_to_modelslab(room_png)
+    object_url = _upload_to_modelslab(object_png)
 
     if width < 512 or height < 512:
         img = Image.open(BytesIO(room_png))
@@ -166,12 +191,12 @@ def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, w
 
     return _post_and_poll("interior_mixer", {
         "key": MODEL_LABS_KEY,
-        "init_image": room_b64,
-        "object_image": obj_b64,
+        "init_image": room_url,
+        "object_image": object_url,
         "prompt": prompt or "Place the object naturally into the room with realistic lighting and shadows",
         "width": width,
         "height": height,
-        "base64": True,
+        "base64": False,
         "num_inference_steps": 51,
         "guidance_scale": 8,
     })
@@ -188,13 +213,13 @@ def generate_interior_make(room_png: bytes, prompt: str, negative_prompt: str = 
 
     payload = {
         "key": MODEL_LABS_KEY,
-        "init_image": _b64(room_png),
+        "init_image": _upload_to_modelslab(room_png),
         "prompt": prompt,
         "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
         "strength": strength,
         "guidance_scale": 8,
         "num_inference_steps": 51,
-        "base64": True,
+        "base64": False,
         "width": w,
         "height": h,
     }
@@ -215,13 +240,13 @@ def generate_room_decorator(room_png: bytes, prompt: str, negative_prompt: str =
 
     payload = {
         "key": MODEL_LABS_KEY,
-        "init_image": _b64(room_png),
+        "init_image": _upload_to_modelslab(room_png),
         "prompt": prompt,
         "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
         "strength": strength,
         "guidance_scale": 8,
         "num_inference_steps": 51,
-        "base64": True,
+        "base64": False,
         "width": w,
         "height": h,
     }
@@ -242,13 +267,13 @@ def generate_floor_plan(room_png: bytes, prompt: str, negative_prompt: str = "",
 
     return _post_and_poll("floor_planning", {
         "key": MODEL_LABS_KEY,
-        "init_image": _b64(room_png),
+        "init_image": _upload_to_modelslab(room_png),
         "prompt": prompt,
         "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
         "strength": strength,
         "guidance_scale": 8,
         "num_inference_steps": 51,
-        "base64": True,
+        "base64": False,
         "width": w,
         "height": h,
     })
@@ -261,9 +286,9 @@ def generate_object_removal(room_png: bytes, object_name: str) -> str:
 
     return _post_and_poll("object_removal", {
         "key": MODEL_LABS_KEY,
-        "init_image": _b64(room_png),
+        "init_image": _upload_to_modelslab(room_png),
         "object_name": object_name,
-        "base64": True,
+        "base64": False,
     })
 
 
@@ -282,14 +307,14 @@ def generate_scenario_change(room_png: bytes, prompt: str, scenario: str, negati
 
     return _post_and_poll("scenario_changer", {
         "key": MODEL_LABS_KEY,
-        "init_image": _b64(room_png),
+        "init_image": _upload_to_modelslab(room_png),
         "prompt": prompt,
         "scenario": scenario,
         "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
         "strength": strength,
         "guidance_scale": 8,
         "num_inference_steps": 51,
-        "base64": True,
+        "base64": False,
         "width": w,
         "height": h,
     })
@@ -306,13 +331,13 @@ def generate_sketch_render(sketch_png: bytes, prompt: str, negative_prompt: str 
 
     return _post_and_poll("sketch_rendering", {
         "key": MODEL_LABS_KEY,
-        "init_image": _b64(sketch_png),
+        "init_image": _upload_to_modelslab(sketch_png),
         "prompt": prompt,
         "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
         "strength": strength,
         "guidance_scale": 8,
         "num_inference_steps": 51,
-        "base64": True,
+        "base64": False,
         "width": w,
         "height": h,
     })
@@ -329,13 +354,13 @@ def generate_exterior_restore(exterior_png: bytes, prompt: str, negative_prompt:
 
     return _post_and_poll("exterior_restorer", {
         "key": MODEL_LABS_KEY,
-        "init_image": _b64(exterior_png),
+        "init_image": _upload_to_modelslab(exterior_png),
         "prompt": prompt,
         "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
         "strength": strength,
         "guidance_scale": 8,
         "num_inference_steps": 51,
-        "base64": True,
+        "base64": False,
         "width": w,
         "height": h,
     })
