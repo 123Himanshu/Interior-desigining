@@ -37,21 +37,24 @@ app.include_router(edit_router)
 
 @app.get("/health")
 async def health():
-    from app.config import HF_TOKEN, HF_DATASET_REPO, DATABASE_URL
-    from app.database import _USE_PG
+    from app.config import HF_TOKEN, HF_DATASET_REPO
     result = {
         "status": "ok",
-        "db": "postgresql" if _USE_PG else "sqlite",
         "hf_sync": bool(HF_TOKEN and HF_DATASET_REPO),
     }
     try:
-        from app.database import get_db
+        from app.database import get_db, _PgConn, _USE_PG
         conn = get_db()
+        if isinstance(conn, _PgConn):
+            result["db"] = "postgresql"
+        else:
+            result["db"] = "sqlite"
         conn.execute("SELECT 1")
-        conn.close()
         result["db_ok"] = True
-    except Exception:
+        conn.close()
+    except Exception as e:
         result["db_ok"] = False
+        result["db_error"] = str(e)[:200]
     return result
 
 

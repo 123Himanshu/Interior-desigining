@@ -36,8 +36,13 @@ def get_user_credits(user_id: int) -> int:
 def charge_credit(user_id: int) -> int | None:
     conn = get_db()
     try:
-        conn.execute("UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0", (user_id,))
-        if conn.rowcount and conn.rowcount == 0:
+        result = conn.execute("UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0", (user_id,))
+        affected = 0
+        if hasattr(result, 'rowcount') and result.rowcount >= 0:
+            affected = result.rowcount
+        elif hasattr(conn, 'rowcount') and conn.rowcount >= 0:
+            affected = conn.rowcount
+        if affected == 0:
             return None
         conn.commit()
         row = conn.execute("SELECT credits FROM users WHERE id = ?", (user_id,)).fetchone()
