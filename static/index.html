@@ -1219,6 +1219,7 @@ body, html {
       <span id="creditCount">--</span> credits
     </div>
     <button class="btn-logout" id="logoutBtn" style="display:none">Log out</button>
+    <a href="/admin" target="_blank" id="adminLink" style="display:none; color:#ea2804; font-size:12px; margin-left:8px; text-decoration:none; border:1px solid #ea2804; padding:6px 14px; border-radius:6px; font-weight:600;">Admin</a>
     <div class="sync-status" id="syncStatus"></div>
   </nav>
 
@@ -1730,6 +1731,7 @@ const Auth = {
     } catch {}
     updateCreditDisplay();
     $('logoutBtn').style.display = 'none';
+    $('adminLink').style.display = 'none';
   },
 
   async verify() {
@@ -1742,6 +1744,7 @@ const Auth = {
       this._isAdmin = data.is_admin || false;
       updateCreditDisplay();
       $('logoutBtn').style.display = '';
+      $('adminLink').style.display = this._isAdmin ? '' : 'none';
       return true;
     } catch {
       this.clear();
@@ -1764,6 +1767,7 @@ const Auth = {
     this.persist();
     updateCreditDisplay();
     $('logoutBtn').style.display = '';
+    $('adminLink').style.display = this._isAdmin ? '' : 'none';
   },
 
   logout() {
@@ -2379,8 +2383,7 @@ $('generateBtn').addEventListener('click', async () => {
   const elapsedInterval = setInterval(() => {
     const secs = Math.floor((Date.now() - genStart) / 1000);
     const mins = Math.floor(secs / 60);
-    const remaining = Math.max(0, 120 - secs);
-    const etaText = secs < 30 ? 'Analyzing scene...' : `Generating... ${mins > 0 ? mins + 'm ' : ''}${secs % 60}s elapsed · ~${remaining}s remaining`;
+    const etaText = secs < 30 ? 'Analyzing scene...' : `Generating... ${mins > 0 ? mins + 'm ' : ''}${secs % 60}s elapsed`;
     if (loaderDesc) loaderDesc.textContent = etaText;
   }, 1000);
 

@@ -19,9 +19,6 @@ def _backup_to_hf():
             users = conn.execute(
                 "SELECT id, username, password_hash, salt, credits, is_admin, created_at FROM users"
             ).fetchall()
-            sessions = conn.execute(
-                "SELECT token, user_id, expires_at, created_at FROM sessions"
-            ).fetchall()
             library = conn.execute(
                 "SELECT id, user_id, name, room_tag, obj_tag, image_b64, created_at FROM library_items"
             ).fetchall()
@@ -41,7 +38,6 @@ def _backup_to_hf():
 
         data = {
             "users": _ser(users),
-            "sessions": _ser(sessions),
             "library_items": _ser(library),
             "library_seeded": _ser(seeded),
         }

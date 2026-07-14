@@ -122,12 +122,16 @@ async def edit_room(
 
         raw_objects = [object_image_1, object_image_2, object_image_3, object_image_4, object_image_5]
         pil_objects = []
+        room_w, room_h = 0, 0
         for i, obj_upload in enumerate(raw_objects):
             if obj_upload and obj_upload.filename:
                 obj_bytes = await obj_upload.read()
                 obj_png = prepare_image(obj_bytes)
                 (UPLOADS_DIR / f"{room_id}_obj{i + 1}.png").write_bytes(obj_png)
                 pil_objects.append(Image.open(BytesIO(obj_png)).convert("RGBA"))
+
+        room_dims = Image.open(BytesIO(room_png))
+        room_w, room_h = room_dims.width, room_dims.height
 
         reference_png = None
         if len(pil_objects) == 1:
@@ -151,8 +155,7 @@ async def edit_room(
                 )
             tag = tags[0] if tags else "object"
             ml_prompt = f"Add the {tag} from the object image into the room image. {prompt}"
-            dims = Image.open(BytesIO(room_png))
-            result_b64 = generate_modelslab(room_png, reference_png, ml_prompt, dims.width, dims.height)
+            result_b64 = generate_modelslab(room_png, reference_png, ml_prompt, room_w, room_h)
         else:
             final_prompt = build_prompt(prompt, tags[:len(pil_objects)])
             result_b64 = generate_openai(room_png, reference_png, final_prompt, room_path.name)

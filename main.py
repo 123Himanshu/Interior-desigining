@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db, health_check
+from app.config import HF_TOKEN, HF_DATASET_REPO, MODEL_LABS_KEY
 from app.routes.auth import router as auth_router
 from app.routes.admin import router as admin_router
 from app.routes.library import router as library_router
@@ -36,7 +37,6 @@ app.include_router(edit_router)
 
 @app.get("/health")
 async def health():
-    from app.config import HF_TOKEN, HF_DATASET_REPO, MODEL_LABS_KEY
     info = health_check()
     return {
         "status": "ok" if info.get("db_ok") else "degraded",

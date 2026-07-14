@@ -9,12 +9,6 @@ from app.config import (
 )
 
 
-_client = None
-if not USE_MODEL_LABS and OPENAI_API_KEY:
-    import openai
-    _client = openai.OpenAI(api_key=OPENAI_API_KEY)
-
-
 def prepare_image(file_bytes: bytes) -> bytes:
     img = Image.open(BytesIO(file_bytes)).convert("RGBA")
     if img.width > MAX_DIMENSION or img.height > MAX_DIMENSION:
@@ -146,8 +140,11 @@ def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, w
     fetch_url = data.get("fetch_result")
     job_id = data.get("id")
 
-    # Poll for up to ~4 minutes
+    # Poll for up to 3 minutes
+    total_start = time.time()
     for attempt in range(30):
+        if time.time() - total_start > 180:
+            break
         time.sleep(8)
 
         # 1) Prefer future_links when ready

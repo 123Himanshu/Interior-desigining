@@ -1,6 +1,5 @@
 import os
 from dotenv import load_dotenv
-from urllib.parse import quote, urlparse, urlunparse
 
 load_dotenv()
 

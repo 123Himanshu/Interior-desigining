@@ -1,6 +1,5 @@
 """PostgreSQL-only database layer via Supabase (psycopg2)."""
 import sys
-from contextlib import contextmanager
 
 from app.config import DATABASE_URL
 
@@ -11,6 +10,9 @@ class DatabaseError(RuntimeError):
     pass
 
 
+_pool_failed = False
+
+
 def _require_url():
     if not DATABASE_URL:
         raise DatabaseError(
@@ -19,9 +21,11 @@ def _require_url():
 
 
 def _get_pool():
-    global _pool
+    global _pool, _pool_failed
     if _pool is not None:
         return _pool
+    if _pool_failed:
+        raise DatabaseError("PostgreSQL pool previously failed to connect. Restart required.")
     _require_url()
     try:
         from psycopg2 import pool as pg_pool
@@ -33,6 +37,7 @@ def _get_pool():
         )
         return _pool
     except Exception as e:
+        _pool_failed = True
         raise DatabaseError(f"Failed to connect to PostgreSQL: {e}") from e
 
 
@@ -85,22 +90,6 @@ class PgConn:
 def get_db() -> PgConn:
     raw = _get_pool().getconn()
     return PgConn(raw)
-
-
-@contextmanager
-def db_session():
-    conn = get_db()
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        raise
-    finally:
-        conn.close()
 
 
 def init_db():
