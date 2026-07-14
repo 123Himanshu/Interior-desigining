@@ -4,6 +4,7 @@ from pathlib import Path
 from app.config import DATABASE_URL
 
 _USE_PG = bool(DATABASE_URL)
+_pg_failed = False
 DB_PATH = Path("/data/roomai.db") if Path("/data").exists() else Path("roomai.db")
 
 try:
@@ -74,12 +75,14 @@ class _PgConn:
 
 
 def get_db():
-    if _USE_PG:
+    global _pg_failed
+    if _USE_PG and not _pg_failed:
         try:
             import psycopg2
-            conn = psycopg2.connect(DATABASE_URL)
+            conn = psycopg2.connect(DATABASE_URL, connect_timeout=5)
             return _PgConn(conn)
         except Exception as e:
+            _pg_failed = True
             print(f"[WARN] PostgreSQL connection failed ({e}), falling back to SQLite", file=sys.stderr)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
