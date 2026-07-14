@@ -55,11 +55,17 @@ async def register(request: Request, authorization: str = Header(None)):
         credits = 0
     if user_exists(username):
         raise HTTPException(status_code=409, detail="Username already taken")
-    is_admin = True  # Users created via admin key are always admins
-    user = create_user(username, password, credits, is_admin=is_admin)
+    # is_admin only for first user (handled inside create_user) or explicit flag
+    make_admin = bool(body.get("is_admin", False))
+    user = create_user(username, password, credits, is_admin=make_admin)
     token = create_session(user["id"])
     schedule_backup()
-    return JSONResponse({"token": token, "username": username, "credits": credits, "is_admin": user.get("is_admin", False)})
+    return JSONResponse({
+        "token": token,
+        "username": user["username"],
+        "credits": user["credits"],
+        "is_admin": user.get("is_admin", False),
+    })
 
 
 @router.post("/admin/set-credits")

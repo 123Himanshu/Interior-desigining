@@ -1,6 +1,6 @@
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.database import get_db
 
 
@@ -18,9 +18,11 @@ def verify_password(password: str, salt: str, stored_hash: str) -> bool:
 
 def create_session(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
-    expires = (datetime.utcnow() + timedelta(days=30)).isoformat()
+    expires = datetime.now(timezone.utc) + timedelta(days=30)
     conn = get_db()
     try:
+        # Clean expired sessions for this user (keeps table small)
+        conn.execute("DELETE FROM sessions WHERE user_id = ? AND expires_at < NOW()", (user_id,))
         conn.execute(
             "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
             (token, user_id, expires),
@@ -32,20 +34,23 @@ def create_session(user_id: int) -> str:
 
 
 def get_user_by_token(token: str) -> dict | None:
-    now = datetime.utcnow().isoformat()
     conn = get_db()
     try:
         row = conn.execute(
-            "SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?",
-            (token, now),
+            """SELECT u.id, u.username, u.credits, u.is_admin
+               FROM sessions s
+               JOIN users u ON u.id = s.user_id
+               WHERE s.token = ? AND s.expires_at > NOW()""",
+            (token,),
         ).fetchone()
         if not row:
             return None
-        user = conn.execute(
-            "SELECT id, username, credits, is_admin FROM users WHERE id = ?",
-            (row["user_id"],),
-        ).fetchone()
-        return dict(user) if user else None
+        return {
+            "id": row["id"],
+            "username": row["username"],
+            "credits": int(row["credits"]),
+            "is_admin": bool(row["is_admin"]),
+        }
     finally:
         conn.close()
 
@@ -61,7 +66,20 @@ def login_user(username: str, password: str) -> tuple[str | None, str, int, bool
             return None, "", 0, False
         if not verify_password(password, user["salt"], user["password_hash"]):
             return None, "", 0, False
+        uid = user["id"]
+        uname = user["username"]
+        credits = int(user["credits"])
+        is_admin = bool(user["is_admin"])
     finally:
         conn.close()
-    token = create_session(user["id"])
-    return token, user["username"], user["credits"], bool(user["is_admin"])
+    token = create_session(uid)
+    return token, uname, credits, is_admin
+
+
+def logout_token(token: str):
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.commit()
+    finally:
+        conn.close()

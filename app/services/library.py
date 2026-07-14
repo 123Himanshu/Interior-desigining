@@ -1,5 +1,5 @@
 import json as _json
-from app.database import get_db, _USE_PG, _sql
+from app.database import get_db
 from app.config import HF_TOKEN, HF_DATASET_REPO, SEED_USERNAME
 
 LIBRARY_FILE = "library.json"
@@ -22,10 +22,20 @@ def _hf_load_assets() -> list:
         return []
 
 
+_UPSERT = """
+INSERT INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT (id, user_id) DO UPDATE SET
+  name = EXCLUDED.name,
+  room_tag = EXCLUDED.room_tag,
+  obj_tag = EXCLUDED.obj_tag,
+  image_b64 = EXCLUDED.image_b64
+"""
+
+
 def seed_library(user_id: int, username: str):
-    if not _hf_enabled:
-        return
-    if username != SEED_USERNAME:
+    """Seed HF library assets only for SEED_USERNAME, once."""
+    if not _hf_enabled or username != SEED_USERNAME:
         return
     conn = get_db()
     try:
@@ -34,25 +44,28 @@ def seed_library(user_id: int, username: str):
             return
         assets = _hf_load_assets()
         for idx, a in enumerate(assets):
-            if isinstance(a, dict):
-                aid = a.get("id") or f"hf_seed_{idx}"
-                conn.execute(
-                    _sql(
-                        "INSERT INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?,?,?,?,?,?) ON CONFLICT (id, user_id) DO UPDATE SET name=EXCLUDED.name, room_tag=EXCLUDED.room_tag, obj_tag=EXCLUDED.obj_tag, image_b64=EXCLUDED.image_b64",
-                        "INSERT OR REPLACE INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?,?,?,?,?,?)",
-                    ),
-                    (str(aid), user_id, a.get("name", ""), a.get("room_tag", ""), a.get("obj_tag", ""), a.get("image_b64", "")),
-                )
+            if not isinstance(a, dict):
+                continue
+            aid = str(a.get("id") or f"hf_seed_{idx}")
+            conn.execute(
+                _UPSERT,
+                (
+                    aid, user_id,
+                    a.get("name", ""),
+                    a.get("room_tag", a.get("roomTag", "")),
+                    a.get("obj_tag", a.get("objectTag", "")),
+                    a.get("image_b64", a.get("dataUrl", "")),
+                ),
+            )
         conn.execute(
-            _sql(
-                "INSERT INTO library_seeded (id) VALUES (?) ON CONFLICT (id) DO NOTHING",
-                "INSERT OR IGNORE INTO library_seeded (id) VALUES (?)",
-            ),
-            (1,),
+            "INSERT INTO library_seeded (id) VALUES (1) ON CONFLICT (id) DO NOTHING"
         )
         conn.commit()
     except Exception:
-        pass
+        try:
+            conn.rollback()
+        except Exception:
+            pass
     finally:
         conn.close()
 
@@ -61,14 +74,19 @@ def get_user_library(user_id: int) -> list[dict]:
     conn = get_db()
     try:
         rows = conn.execute(
-            """SELECT id, name, room_tag AS "roomTag", obj_tag AS "objectTag",
-               image_b64 AS "dataUrl", created_at AS "createdAt"
-               FROM library_items WHERE user_id = ? ORDER BY createdAt""",
+            """SELECT id, name,
+                      room_tag AS "roomTag",
+                      obj_tag AS "objectTag",
+                      image_b64 AS "dataUrl",
+                      created_at AS "createdAt"
+               FROM library_items
+               WHERE user_id = ?
+               ORDER BY created_at""",
             (user_id,),
         ).fetchall()
     finally:
         conn.close()
-    return [dict(r) for r in rows]
+    return rows
 
 
 def save_user_library(user_id: int, assets: list[dict]):
@@ -76,23 +94,23 @@ def save_user_library(user_id: int, assets: list[dict]):
     try:
         conn.execute("DELETE FROM library_items WHERE user_id = ?", (user_id,))
         for a in assets:
-            aid = str(a.get("id", ""))
+            aid = str(a.get("id", "")).strip()
             if not aid:
                 continue
             conn.execute(
-                _sql(
-                    "INSERT INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?,?,?,?,?,?) ON CONFLICT (id, user_id) DO UPDATE SET name=EXCLUDED.name, room_tag=EXCLUDED.room_tag, obj_tag=EXCLUDED.obj_tag, image_b64=EXCLUDED.image_b64",
-                    "INSERT OR REPLACE INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?,?,?,?,?,?)",
+                _UPSERT,
+                (
+                    aid, user_id,
+                    a.get("name", ""),
+                    a.get("roomTag", a.get("room_tag", "")),
+                    a.get("objectTag", a.get("obj_tag", "")),
+                    a.get("dataUrl", a.get("image_b64", "")),
                 ),
-                (aid, user_id, a.get("name", ""),
-                 a.get("roomTag", a.get("room_tag", "")),
-                 a.get("objectTag", a.get("obj_tag", "")),
-                 a.get("dataUrl", a.get("image_b64", ""))),
             )
         conn.commit()
     except Exception:
         try:
-            conn.execute("ROLLBACK")
+            conn.rollback()
         except Exception:
             pass
         raise
@@ -103,13 +121,7 @@ def save_user_library(user_id: int, assets: list[dict]):
 def add_library_item(user_id: int, item_id: str, name: str, room_tag: str, obj_tag: str, data_url: str):
     conn = get_db()
     try:
-        conn.execute(
-            _sql(
-                "INSERT INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?,?,?,?,?,?) ON CONFLICT (id, user_id) DO UPDATE SET name=EXCLUDED.name, room_tag=EXCLUDED.room_tag, obj_tag=EXCLUDED.obj_tag, image_b64=EXCLUDED.image_b64",
-                "INSERT OR REPLACE INTO library_items (id, user_id, name, room_tag, obj_tag, image_b64) VALUES (?,?,?,?,?,?)",
-            ),
-            (item_id, user_id, name, room_tag, obj_tag, data_url),
-        )
+        conn.execute(_UPSERT, (item_id, user_id, name, room_tag, obj_tag, data_url))
         conn.commit()
     finally:
         conn.close()
@@ -118,7 +130,10 @@ def add_library_item(user_id: int, item_id: str, name: str, room_tag: str, obj_t
 def delete_library_item(user_id: int, item_id: str):
     conn = get_db()
     try:
-        conn.execute("DELETE FROM library_items WHERE id = ? AND user_id = ?", (item_id, user_id))
+        conn.execute(
+            "DELETE FROM library_items WHERE id = ? AND user_id = ?",
+            (item_id, user_id),
+        )
         conn.commit()
     finally:
         conn.close()

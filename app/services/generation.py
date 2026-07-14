@@ -25,8 +25,8 @@ def prepare_image(file_bytes: bytes) -> bytes:
     scale = 1.0
     while len(data) > MAX_SIZE_BYTES and scale > 0.2:
         scale -= 0.1
-        new_w = int(img.width * scale)
-        new_h = int(img.height * scale)
+        new_w = max(8, int(img.width * scale))
+        new_h = max(8, int(img.height * scale))
         resized = img.resize((new_w, new_h), Image.LANCZOS)
         buf = BytesIO()
         resized.save(buf, format="PNG")
@@ -35,11 +35,41 @@ def prepare_image(file_bytes: bytes) -> bytes:
 
 
 def clamp_dims(width: int, height: int) -> tuple[int, int]:
-    return max(512, min(2048, width - (width % 8))), max(512, min(2048, height - (height % 8)))
+    w = max(512, min(2048, width - (width % 8)))
+    h = max(512, min(2048, height - (height % 8)))
+    return w, h
+
+
+def _to_b64_image(content: bytes) -> str:
+    """Normalize ModelsLab response bytes into a base64 image string."""
+    if not content or len(content) < 100:
+        raise RuntimeError("ModelsLab: empty image response")
+
+    # HTML 404 page
+    if content[:15].lstrip().lower().startswith(b"<!doctype") or content[:6].lower().startswith(b"<html"):
+        raise RuntimeError("ModelsLab: image not ready yet")
+
+    # Already a base64 text payload (JPEG starts with /9j/, PNG with iVBOR)
+    try:
+        text = content.decode("utf-8").strip()
+        if text.startswith("data:image"):
+            text = text.split(",", 1)[1]
+        raw = base64.b64decode(text, validate=False)
+        Image.open(BytesIO(raw)).verify()
+        return text
+    except Exception:
+        pass
+
+    # Raw binary image
+    try:
+        Image.open(BytesIO(content)).verify()
+        return base64.b64encode(content).decode("ascii")
+    except Exception as e:
+        raise RuntimeError(f"ModelsLab: invalid image data ({e})")
 
 
 def generate_openai(room_png: bytes, reference_png: bytes | None, prompt: str, room_fname: str) -> str:
-    if not OPENAI_API_KEY:
+    if not OPENAI_API_KEY or OPENAI_API_KEY.startswith("sk-placeholder"):
         raise RuntimeError("OPENAI_API_KEY not configured")
     import openai
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
@@ -68,11 +98,15 @@ def generate_openai(room_png: bytes, reference_png: bytes | None, prompt: str, r
 def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, width: int = 0, height: int = 0) -> str:
     if not MODEL_LABS_KEY:
         raise RuntimeError("MODEL_LABS_KEY not configured")
-    room_b64 = base64.b64encode(room_png).decode()
-    if width < 512:
-        width = Image.open(BytesIO(room_png)).width
-    if height < 512:
-        height = Image.open(BytesIO(room_png)).height
+    if not object_png:
+        raise RuntimeError("ModelsLab Interior-Mixer requires an object image. Upload at least one furniture/object reference.")
+
+    room_b64 = base64.b64encode(room_png).decode("ascii")
+    obj_b64 = base64.b64encode(object_png).decode("ascii")
+
+    if width < 512 or height < 512:
+        img = Image.open(BytesIO(room_png))
+        width, height = img.width, img.height
     width, height = clamp_dims(width, height)
 
     import requests as req
@@ -80,44 +114,97 @@ def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, w
         "key": MODEL_LABS_KEY,
         "model_id": "Interior-Mixer",
         "init_image": room_b64,
-        "prompt": prompt,
+        "object_image": obj_b64,
+        "prompt": prompt or "Place the object naturally into the room with realistic lighting and shadows",
         "width": str(width),
         "height": str(height),
-        "base64": True,
+        "base64": "yes",
+        "num_inference_steps": "8",
+        "guidance_scale": 7.5,
+        "strength": 0.8,
     }
-    if object_png:
-        payload["object_image"] = base64.b64encode(object_png).decode()
 
     resp = req.post(
         "https://modelslab.com/api/v6/interior/interior_mixer",
         headers={"Content-Type": "application/json"},
-        json=payload, timeout=120,
+        json=payload,
+        timeout=120,
     )
     if resp.status_code != 200:
-        raise RuntimeError(f"ModelsLab {resp.status_code}: {resp.text[:300]}")
+        raise RuntimeError(f"ModelsLab HTTP {resp.status_code}: {resp.text[:300]}")
 
     data = resp.json()
-    if data.get("status") == "error":
-        raise RuntimeError(f"ModelsLab: {data.get('message', 'unknown')}")
+    status = (data.get("status") or "").lower()
+    if status == "error":
+        raise RuntimeError(f"ModelsLab: {data.get('message', 'unknown error')}")
 
-    future_links = data.get("future_links", [])
-    if not future_links:
-        raise RuntimeError(f"ModelsLab: no future_links. Response: {_json.dumps(data)[:200]}")
+    # Immediate success with output
+    outputs = data.get("output") or []
+    if status == "success" and outputs:
+        return _extract_output(outputs[0], req)
 
-    image_url = future_links[0]
-    for _ in range(30):
+    future_links = data.get("future_links") or []
+    fetch_url = data.get("fetch_result")
+    job_id = data.get("id")
+
+    # Poll for up to ~4 minutes
+    for attempt in range(30):
         time.sleep(8)
-        ir = req.get(image_url, timeout=30)
-        if ir.status_code == 200 and len(ir.content) > 100:
-            return ir.content.decode("utf-8")
-    raise RuntimeError("ModelsLab: timed out waiting for image")
+
+        # 1) Prefer future_links when ready
+        if future_links:
+            try:
+                ir = req.get(future_links[0], timeout=30)
+                if ir.status_code == 200 and len(ir.content) > 500:
+                    return _to_b64_image(ir.content)
+            except Exception:
+                pass
+
+        # 2) Poll fetch_result endpoint
+        if fetch_url:
+            try:
+                fr = req.post(fetch_url, json={"key": MODEL_LABS_KEY}, timeout=30)
+                if fr.status_code == 200:
+                    fd = fr.json()
+                    fstatus = (fd.get("status") or "").lower()
+                    if fstatus == "success":
+                        outs = fd.get("output") or fd.get("future_links") or []
+                        if outs:
+                            return _extract_output(outs[0], req)
+                    if fstatus == "error":
+                        raise RuntimeError(f"ModelsLab: {fd.get('message', 'generation failed')}")
+            except RuntimeError:
+                raise
+            except Exception:
+                pass
+
+        # 3) Fallback fetch by id
+        if job_id and not fetch_url:
+            try:
+                fr = req.post(
+                    f"https://modelslab.com/api/v6/interior/fetch/{job_id}",
+                    json={"key": MODEL_LABS_KEY},
+                    timeout=30,
+                )
+                if fr.status_code == 200:
+                    fd = fr.json()
+                    if (fd.get("status") or "").lower() == "success":
+                        outs = fd.get("output") or []
+                        if outs:
+                            return _extract_output(outs[0], req)
+            except Exception:
+                pass
+
+    raise RuntimeError("ModelsLab: timed out waiting for image (try again)")
 
 
-async def generate_modelslab_async(room_png, object_png, prompt, width=0, height=0):
-    import asyncio
-    return await asyncio.to_thread(generate_modelslab, room_png, object_png, prompt, width, height)
-
-
-async def generate_openai_async(room_png, reference_png, prompt, room_fname):
-    import asyncio
-    return await asyncio.to_thread(generate_openai, room_png, reference_png, prompt, room_fname)
+def _extract_output(item, req) -> str:
+    """item may be a URL or a base64 string."""
+    if not isinstance(item, str):
+        raise RuntimeError("ModelsLab: unexpected output format")
+    if item.startswith("http"):
+        r = req.get(item, timeout=60)
+        if r.status_code != 200:
+            raise RuntimeError(f"ModelsLab: failed to download result ({r.status_code})")
+        return _to_b64_image(r.content)
+    return _to_b64_image(item.encode("utf-8"))

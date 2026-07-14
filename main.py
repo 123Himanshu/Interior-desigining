@@ -1,10 +1,9 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
 
-from app.database import init_db
-from app.services.backup import restore_from_hf
+from app.database import init_db, health_check
 from app.routes.auth import router as auth_router
 from app.routes.admin import router as admin_router
 from app.routes.library import router as library_router
@@ -14,7 +13,6 @@ from app.routes.edit import router as edit_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    restore_from_hf()
     yield
 
 
@@ -35,25 +33,14 @@ app.include_router(edit_router)
 
 @app.get("/health")
 async def health():
-    from app.config import HF_TOKEN, HF_DATASET_REPO
-    result = {
-        "status": "ok",
+    from app.config import HF_TOKEN, HF_DATASET_REPO, MODEL_LABS_KEY
+    info = health_check()
+    return {
+        "status": "ok" if info.get("db_ok") else "degraded",
         "hf_sync": bool(HF_TOKEN and HF_DATASET_REPO),
+        "modelslab": bool(MODEL_LABS_KEY),
+        **info,
     }
-    try:
-        from app.database import get_db, _PgConn, _USE_PG
-        conn = get_db()
-        if isinstance(conn, _PgConn):
-            result["db"] = "postgresql"
-        else:
-            result["db"] = "sqlite"
-        conn.execute("SELECT 1")
-        result["db_ok"] = True
-        conn.close()
-    except Exception as e:
-        result["db_ok"] = False
-        result["db_error"] = str(e)[:200]
-    return result
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

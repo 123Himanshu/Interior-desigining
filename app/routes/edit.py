@@ -139,9 +139,13 @@ async def edit_room(
             reference_png = buf.getvalue()
 
         if USE_MODEL_LABS:
-            ml_prompt = prompt
-            if reference_png and tags:
-                ml_prompt = f"Add {tags[0]} from the object image to the room image. {ml_prompt}"
+            if not reference_png:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Upload at least one object/furniture image. ModelsLab Interior-Mixer requires it.",
+                )
+            tag = tags[0] if tags else "object"
+            ml_prompt = f"Add the {tag} from the object image into the room image. {prompt}"
             dims = Image.open(BytesIO(room_png))
             result_b64 = generate_modelslab(room_png, reference_png, ml_prompt, dims.width, dims.height)
         else:
@@ -154,13 +158,14 @@ async def edit_room(
         except Exception:
             pass
         raise
-    except Exception:
+    except Exception as e:
         try:
             refund_credit(user["id"])
         except Exception:
             pass
         traceback.print_exc(file=sys.stderr)
-        raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
+        msg = str(e)[:200] if str(e) else "Generation failed. Please try again."
+        raise HTTPException(status_code=500, detail=msg)
     finally:
         for f in UPLOADS_DIR.glob(f"{room_id}_*"):
             try:
