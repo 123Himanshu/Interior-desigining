@@ -116,12 +116,11 @@ def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, w
         "init_image": room_b64,
         "object_image": obj_b64,
         "prompt": prompt or "Place the object naturally into the room with realistic lighting and shadows",
-        "width": str(width),
-        "height": str(height),
-        "base64": "yes",
-        "num_inference_steps": "8",
-        "guidance_scale": 7.5,
-        "strength": 0.8,
+        "width": width,
+        "height": height,
+        "base64": True,
+        "num_inference_steps": 51,
+        "guidance_scale": 8,
     }
 
     resp = req.post(

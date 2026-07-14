@@ -130,13 +130,18 @@ async def edit_room(
                 pil_objects.append(Image.open(BytesIO(obj_png)).convert("RGBA"))
 
         reference_png = None
-        if len(pil_objects) > 1:
-            reference_png = build_composite(pil_objects, tags)
-            (UPLOADS_DIR / f"{room_id}_composite.png").write_bytes(reference_png)
-        elif len(pil_objects) == 1:
+        if len(pil_objects) == 1:
             buf = BytesIO()
             pil_objects[0].save(buf, format="PNG")
             reference_png = buf.getvalue()
+        elif len(pil_objects) > 1:
+            if USE_MODEL_LABS:
+                buf = BytesIO()
+                pil_objects[0].save(buf, format="PNG")
+                reference_png = buf.getvalue()
+            else:
+                reference_png = build_composite(pil_objects, tags)
+                (UPLOADS_DIR / f"{room_id}_composite.png").write_bytes(reference_png)
 
         if USE_MODEL_LABS:
             if not reference_png:
