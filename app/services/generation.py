@@ -106,7 +106,6 @@ def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, w
     import requests as req
     payload = {
         "key": MODEL_LABS_KEY,
-        "model_id": "Interior-Mixer",
         "init_image": room_b64,
         "object_image": obj_b64,
         "prompt": prompt or "Place the object naturally into the room with realistic lighting and shadows",
