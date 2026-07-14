@@ -1232,6 +1232,24 @@ body, html {
         <h2 class="sidebar-title">Pipeline Configuration</h2>
       </div>
 
+      <!-- Step 0: Mode Selector -->
+      <div class="step-container" id="step0">
+        <div class="step-header">
+          <span class="step-num">00 /</span>
+          <span class="step-label">Design Mode</span>
+        </div>
+        <div class="tags-row" id="modeTags">
+          <button class="tag active" data-mode="edit" data-requires-obj="true">Interior Mixer</button>
+          <button class="tag" data-mode="make" data-requires-obj="false">Interior Make</button>
+          <button class="tag" data-mode="decorate" data-requires-obj="false">Room Decorator</button>
+          <button class="tag" data-mode="floor-plan" data-requires-obj="false">Floor Planning</button>
+          <button class="tag" data-mode="remove-object" data-requires-obj="false">Object Removal</button>
+          <button class="tag" data-mode="scenario" data-requires-obj="false">Scenario Change</button>
+          <button class="tag" data-mode="sketch" data-requires-obj="false">Sketch Rendering</button>
+          <button class="tag" data-mode="exterior" data-requires-obj="false">Exterior Restore</button>
+        </div>
+      </div>
+
       <!-- Step 1: Room image -->
       <div class="step-container" id="step1">
         <div class="step-header">
@@ -1340,7 +1358,7 @@ body, html {
       </div>
 
       <div class="sidebar-footer">
-        <button class="btn-generate" id="generateBtn">Process Render</button>
+        <button class="btn-generate" id="generateBtn">Generate</button>
         <div class="disclaimer-inline">
           <strong>Important:</strong> AI-generated visualizations are for design inspiration only. They do not represent exact measurements, scale, spacing, dimensions, or the final installed appearance. Always verify specifications before purchasing or installing furniture.
         </div>
@@ -1616,6 +1634,7 @@ const LibraryStore = {
 const ORIGINAL_KEY = 'roomai_original_scene';
 
 const S = {
+  designMode:         'edit',
   libSelectedIds:    new Set(),
   editorSelectedIds: new Set(),
   assetMode:         'upload',
@@ -2358,6 +2377,20 @@ document.querySelectorAll('#placement-tags .tag').forEach(t => t.addEventListene
   S.userEditedPrompt = false; rebuildPrompt();
 }));
 
+/* ── Mode selector ──────────────────────────────────────── */
+document.querySelectorAll('#modeTags .tag').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('#modeTags .tag').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  S.designMode = t.dataset.mode;
+  const needsObj = t.dataset.requiresObj === 'true';
+  const step2 = $('step2');
+  if (needsObj) {
+    step2.classList.remove('disabled');
+  } else {
+    step2.classList.add('disabled');
+  }
+}));
+
 $('promptInput').addEventListener('input', () => { S.userEditedPrompt = true; });
 
 /* ── Generate ─────────────────────────────────────────────── */
@@ -2369,7 +2402,6 @@ $('generateBtn').addEventListener('click', async () => {
   if (!prompt)   return showToast('Add a directive or select tags.');
 
   const assets     = getActiveAssets();
-  const objectTags = assets.map(a => a.objectTag || a.name);
 
   btn.disabled = true;
   btn.textContent = 'Processing...';
@@ -2392,15 +2424,20 @@ $('generateBtn').addEventListener('click', async () => {
     const ext = S.baseBlob.type === 'image/jpeg' ? 'jpg' : 'png';
     fd.append('room_image', new File([S.baseBlob], `room.${ext}`, { type: S.baseBlob.type }));
     fd.append('prompt', prompt);
-    fd.append('object_tags', JSON.stringify(objectTags));
 
-    for (let i = 0; i < Math.min(assets.length, 5); i++) {
-      const a    = assets[i];
-      const blob = a.id === '__upload' ? S.uploadedObjBlob : dataUrlToBlob(a.dataUrl);
-      fd.append(`object_image_${i+1}`, new File([blob], `obj${i+1}.png`, { type: 'image/png' }));
+    const needsObj = S.designMode === 'edit';
+    if (needsObj) {
+      const objectTags = assets.map(a => a.objectTag || a.name);
+      fd.append('object_tags', JSON.stringify(objectTags));
+      for (let i = 0; i < Math.min(assets.length, 5); i++) {
+        const a    = assets[i];
+        const blob = a.id === '__upload' ? S.uploadedObjBlob : dataUrlToBlob(a.dataUrl);
+        fd.append(`object_image_${i+1}`, new File([blob], `obj${i+1}.png`, { type: 'image/png' }));
+      }
     }
 
-    const res  = await authFetch('/edit', { method: 'POST', body: fd });
+    const endpoint = '/' + S.designMode;
+    const res  = await authFetch(endpoint, { method: 'POST', body: fd });
     const json = await res.json();
     if (!res.ok) throw new Error(json.detail || `Error ${res.status}`);
     if (json.credits !== undefined) {
@@ -2423,9 +2460,9 @@ $('generateBtn').addEventListener('click', async () => {
   } finally {
     clearInterval(elapsedInterval);
     $('loader').classList.remove('visible');
-    if (loaderDesc) loaderDesc.textContent = 'Applying photorealistic constraints. Expected: 60-120s';
+    if (loaderDesc) loaderDesc.textContent = 'Expected: 60-120s';
     btn.disabled = false;
-    btn.textContent = 'Process Render';
+    btn.textContent = 'Generate';
   }
 });
 

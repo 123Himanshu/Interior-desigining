@@ -156,9 +156,7 @@ async def edit_room(
                     status_code=400,
                     detail="Upload at least one object/furniture image. ModelsLab Interior-Mixer requires it.",
                 )
-            tag = tags[0] if tags else "object"
-            ml_prompt = f"Add the {tag} from the object image into the room image. {prompt}"
-            result_b64 = generate_modelslab(room_png, reference_png, ml_prompt, room_w, room_h)
+            result_b64 = generate_modelslab(room_png, reference_png, prompt, room_w, room_h)
         else:
             final_prompt = build_prompt(prompt, tags[:len(pil_objects)])
             result_b64 = generate_openai(room_png, reference_png, final_prompt, room_path.name)
