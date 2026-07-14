@@ -4,7 +4,6 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.database import init_db
-from app.config import DATABASE_URL
 from app.services.backup import restore_from_hf
 from app.routes.auth import router as auth_router
 from app.routes.admin import router as admin_router
@@ -15,8 +14,7 @@ from app.routes.edit import router as edit_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    if not DATABASE_URL:
-        restore_from_hf()
+    restore_from_hf()
     yield
 
 
