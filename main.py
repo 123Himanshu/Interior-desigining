@@ -12,7 +12,10 @@ from app.routes.edit import router as edit_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[WARN] DB init failed, running degraded: {e}", flush=True)
     yield
 
 

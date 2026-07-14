@@ -1,6 +1,17 @@
+---
+title: AI Room Visualizer
+emoji: 🏠
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 8000
+pinned: true
+license: mit
+---
+
 # AI Room Visualizer
 
-A minimal demo web app that uses **OpenAI's `gpt-image-1`** model to edit room photos based on natural language prompts.
+A production-grade interior design AI visualizer that uses OpenAI and ModelsLab to edit room photos based on natural language prompts.
 
 ---
 
