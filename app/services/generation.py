@@ -1,15 +1,12 @@
 import base64
 import time
-import json as _json
 from io import BytesIO
 from PIL import Image
-from app.config import (
-    OPENAI_API_KEY, MODEL_LABS_KEY, USE_MODEL_LABS,
-    MAX_DIMENSION, MAX_SIZE_BYTES,
-)
+from app.config import MODEL_LABS_KEY, MAX_DIMENSION, MAX_SIZE_BYTES
 
-ML_BASE = "https://modelslab.com/api/v6/interior"
 ML_API_BASE = "https://modelslab.com/api/v6"
+ML_IMG2IMG = f"{ML_API_BASE}/images/img2img"
+ML_FETCH = f"{ML_API_BASE}/images/fetch"
 
 
 def prepare_image(file_bytes: bytes) -> bytes:
@@ -22,8 +19,8 @@ def prepare_image(file_bytes: bytes) -> bytes:
     scale = 1.0
     while len(data) > MAX_SIZE_BYTES and scale > 0.2:
         scale -= 0.1
-        new_w = max(8, int(img.width * scale))
-        new_h = max(8, int(img.height * scale))
+        new_w = max(16, int(img.width * scale))
+        new_h = max(16, int(img.height * scale))
         resized = img.resize((new_w, new_h), Image.LANCZOS)
         buf = BytesIO()
         resized.save(buf, format="PNG")
@@ -32,19 +29,16 @@ def prepare_image(file_bytes: bytes) -> bytes:
 
 
 def clamp_dims(width: int, height: int) -> tuple[int, int]:
-    w = max(512, min(2048, width - (width % 8)))
-    h = max(512, min(2048, height - (height % 8)))
+    w = max(512, min(1024, width - (width % 16)))
+    h = max(512, min(1024, height - (height % 16)))
     return w, h
 
 
 def _to_b64_image(content: bytes) -> str:
-    """Normalize ModelsLab response bytes into a base64 image string."""
     if not content or len(content) < 100:
         raise RuntimeError("ModelsLab: empty image response")
-
     if content[:15].lstrip().lower().startswith(b"<!doctype") or content[:6].lower().startswith(b"<html"):
         raise RuntimeError("ModelsLab: image not ready yet")
-
     try:
         text = content.decode("utf-8").strip()
         if text.startswith("data:image"):
@@ -54,7 +48,6 @@ def _to_b64_image(content: bytes) -> str:
         return text
     except Exception:
         pass
-
     try:
         Image.open(BytesIO(content)).verify()
         return base64.b64encode(content).decode("ascii")
@@ -63,7 +56,6 @@ def _to_b64_image(content: bytes) -> str:
 
 
 def _extract_output(item, req) -> str:
-    """item may be a URL or a base64 string."""
     if not isinstance(item, str):
         raise RuntimeError("ModelsLab: unexpected output format")
     if item.startswith("http"):
@@ -79,9 +71,7 @@ def _b64(data: bytes) -> str:
 
 
 def _upload_to_modelslab(data: bytes) -> str:
-    """Upload an image and return the temporary URL required by Interior APIs."""
     import requests as req
-
     resp = req.post(
         f"{ML_API_BASE}/base64_to_url",
         json={
@@ -92,7 +82,6 @@ def _upload_to_modelslab(data: bytes) -> str:
     )
     if resp.status_code != 200:
         raise RuntimeError(f"ModelsLab image upload HTTP {resp.status_code}: {resp.text[:300]}")
-
     payload = resp.json()
     if (payload.get("status") or "").lower() != "success":
         raise RuntimeError(f"ModelsLab image upload failed: {payload.get('message', payload)}")
@@ -102,12 +91,72 @@ def _upload_to_modelslab(data: bytes) -> str:
     return urls[0]
 
 
-def _post_and_poll(endpoint: str, payload: dict) -> str:
-    """Shared: POST to ModelsLab endpoint, poll until done, return base64 image."""
+def _poll_result(job_id: str) -> str:
     import requests as req
+    total_start = time.time()
+    for attempt in range(30):
+        if time.time() - total_start > 180:
+            break
+        time.sleep(6)
+        try:
+            fr = req.post(
+                ML_FETCH,
+                json={"key": MODEL_LABS_KEY, "request_id": job_id},
+                timeout=30,
+            )
+            if fr.status_code != 200:
+                continue
+            fd = fr.json()
+            fstatus = (fd.get("status") or "").lower()
+            if fstatus == "success":
+                outs = fd.get("output") or fd.get("future_links") or []
+                if outs:
+                    return _extract_output(outs[0], req)
+            if fstatus == "error":
+                raise RuntimeError(f"ModelsLab: {fd.get('message', 'generation failed')}")
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
+    raise RuntimeError("ModelsLab: timed out waiting for image (try again)")
+
+
+def generate_flux_klein(
+    room_png: bytes,
+    object_pngs: list[bytes],
+    prompt: str,
+    width: int = 0,
+    height: int = 0,
+    strength: float = 0.7,
+) -> str:
+    if not MODEL_LABS_KEY:
+        raise RuntimeError("MODEL_LABS_KEY not configured")
+
+    room_url = _upload_to_modelslab(room_png)
+    init_images = [room_url]
+    for obj in object_pngs:
+        init_images.append(_upload_to_modelslab(obj))
+
+    if width < 512 or height < 512:
+        img = Image.open(BytesIO(room_png))
+        width, height = img.width, img.height
+    width, height = clamp_dims(width, height)
+
+    import requests as req
+    payload = {
+        "key": MODEL_LABS_KEY,
+        "model_id": "flux-klein",
+        "init_image": init_images,
+        "prompt": prompt or "Place the furniture naturally into the room with realistic lighting and shadows",
+        "samples": 1,
+        "strength": max(0.7, min(1.0, strength)),
+        "enhance_prompt": False,
+        "width": width,
+        "height": height,
+    }
 
     resp = req.post(
-        f"{ML_BASE}/{endpoint}",
+        ML_IMG2IMG,
         headers={"Content-Type": "application/json"},
         json=payload,
         timeout=120,
@@ -128,21 +177,20 @@ def _post_and_poll(endpoint: str, payload: dict) -> str:
     fetch_url = data.get("fetch_result")
     job_id = data.get("id")
 
-    total_start = time.time()
-    for attempt in range(30):
-        if time.time() - total_start > 180:
-            break
-        time.sleep(8)
+    if future_links:
+        try:
+            ir = req.get(future_links[0], timeout=30)
+            if ir.status_code == 200 and len(ir.content) > 500:
+                return _to_b64_image(ir.content)
+        except Exception:
+            pass
 
-        if future_links:
-            try:
-                ir = req.get(future_links[0], timeout=30)
-                if ir.status_code == 200 and len(ir.content) > 500:
-                    return _to_b64_image(ir.content)
-            except Exception:
-                pass
-
-        if fetch_url:
+    if fetch_url:
+        fetch_deadline = time.time() + 180
+        for attempt in range(30):
+            if time.time() > fetch_deadline:
+                break
+            time.sleep(6)
             try:
                 fr = req.post(fetch_url, json={"key": MODEL_LABS_KEY}, timeout=30)
                 if fr.status_code == 200:
@@ -159,236 +207,7 @@ def _post_and_poll(endpoint: str, payload: dict) -> str:
             except Exception:
                 pass
 
-        if job_id and not fetch_url:
-            try:
-                fr = req.post(f"{ML_BASE}/fetch/{job_id}", json={"key": MODEL_LABS_KEY}, timeout=30)
-                if fr.status_code == 200:
-                    fd = fr.json()
-                    if (fd.get("status") or "").lower() == "success":
-                        outs = fd.get("output") or []
-                        if outs:
-                            return _extract_output(outs[0], req)
-            except Exception:
-                pass
+    if job_id:
+        return _poll_result(str(job_id))
 
     raise RuntimeError("ModelsLab: timed out waiting for image (try again)")
-
-
-# ── Endpoint 1: Interior Mixer ──────────────────────────────────────────────
-def generate_modelslab(room_png: bytes, object_png: bytes | None, prompt: str, width: int = 0, height: int = 0) -> str:
-    if not MODEL_LABS_KEY:
-        raise RuntimeError("MODEL_LABS_KEY not configured")
-    if not object_png:
-        raise RuntimeError("Interior-Mixer requires an object image.")
-
-    room_url = _upload_to_modelslab(room_png)
-    object_url = _upload_to_modelslab(object_png)
-
-    if width < 512 or height < 512:
-        img = Image.open(BytesIO(room_png))
-        width, height = img.width, img.height
-    width, height = clamp_dims(width, height)
-
-    return _post_and_poll("interior_mixer", {
-        "key": MODEL_LABS_KEY,
-        "init_image": room_url,
-        "object_image": object_url,
-        "prompt": prompt or "Place the object naturally into the room with realistic lighting and shadows",
-        "width": width,
-        "height": height,
-        "base64": False,
-        "num_inference_steps": 51,
-        "guidance_scale": 8,
-    })
-
-
-# ── Endpoint 2: Interior Make (Room Redesign) ──────────────────────────────
-def generate_interior_make(room_png: bytes, prompt: str, negative_prompt: str = "",
-                           strength: float = 5.0, specific_object: str = "") -> str:
-    if not MODEL_LABS_KEY:
-        raise RuntimeError("MODEL_LABS_KEY not configured")
-
-    img = Image.open(BytesIO(room_png))
-    w, h = clamp_dims(img.width, img.height)
-
-    payload = {
-        "key": MODEL_LABS_KEY,
-        "init_image": _upload_to_modelslab(room_png),
-        "prompt": prompt,
-        "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
-        "strength": strength,
-        "guidance_scale": 8,
-        "num_inference_steps": 51,
-        "base64": False,
-        "width": w,
-        "height": h,
-    }
-    if specific_object:
-        payload["specific_object"] = specific_object
-
-    return _post_and_poll("make", payload)
-
-
-# ── Endpoint 3: Room Decorator ─────────────────────────────────────────────
-def generate_room_decorator(room_png: bytes, prompt: str, negative_prompt: str = "",
-                            strength: float = 5.0, specific_object: str = "") -> str:
-    if not MODEL_LABS_KEY:
-        raise RuntimeError("MODEL_LABS_KEY not configured")
-
-    img = Image.open(BytesIO(room_png))
-    w, h = clamp_dims(img.width, img.height)
-
-    payload = {
-        "key": MODEL_LABS_KEY,
-        "init_image": _upload_to_modelslab(room_png),
-        "prompt": prompt,
-        "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
-        "strength": strength,
-        "guidance_scale": 8,
-        "num_inference_steps": 51,
-        "base64": False,
-        "width": w,
-        "height": h,
-    }
-    if specific_object:
-        payload["specific_object"] = specific_object
-
-    return _post_and_poll("room_decorator", payload)
-
-
-# ── Endpoint 4: Floor Planning ─────────────────────────────────────────────
-def generate_floor_plan(room_png: bytes, prompt: str, negative_prompt: str = "",
-                        strength: float = 5.0) -> str:
-    if not MODEL_LABS_KEY:
-        raise RuntimeError("MODEL_LABS_KEY not configured")
-
-    img = Image.open(BytesIO(room_png))
-    w, h = clamp_dims(img.width, img.height)
-
-    return _post_and_poll("floor_planning", {
-        "key": MODEL_LABS_KEY,
-        "init_image": _upload_to_modelslab(room_png),
-        "prompt": prompt,
-        "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
-        "strength": strength,
-        "guidance_scale": 8,
-        "num_inference_steps": 51,
-        "base64": False,
-        "width": w,
-        "height": h,
-    })
-
-
-# ── Endpoint 5: Object Removal ─────────────────────────────────────────────
-def generate_object_removal(room_png: bytes, object_name: str) -> str:
-    if not MODEL_LABS_KEY:
-        raise RuntimeError("MODEL_LABS_KEY not configured")
-
-    return _post_and_poll("object_removal", {
-        "key": MODEL_LABS_KEY,
-        "init_image": _upload_to_modelslab(room_png),
-        "object_name": object_name,
-        "base64": False,
-    })
-
-
-# ── Endpoint 6: Scenario Changer ──────────────────────────────────────────
-SCENARIOS = ["beach", "desert", "plain", "taiga", "mountain", "snow", "jungle", "city", "underwater", "urban", "forest"]
-
-def generate_scenario_change(room_png: bytes, prompt: str, scenario: str, negative_prompt: str = "",
-                             strength: float = 5.0) -> str:
-    if not MODEL_LABS_KEY:
-        raise RuntimeError("MODEL_LABS_KEY not configured")
-    if scenario not in SCENARIOS:
-        raise RuntimeError(f"Invalid scenario '{scenario}'. Must be one of: {', '.join(SCENARIOS)}")
-
-    img = Image.open(BytesIO(room_png))
-    w, h = clamp_dims(img.width, img.height)
-
-    return _post_and_poll("scenario_changer", {
-        "key": MODEL_LABS_KEY,
-        "init_image": _upload_to_modelslab(room_png),
-        "prompt": prompt,
-        "scenario": scenario,
-        "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
-        "strength": strength,
-        "guidance_scale": 8,
-        "num_inference_steps": 51,
-        "base64": False,
-        "width": w,
-        "height": h,
-    })
-
-
-# ── Endpoint 7: Sketch Rendering ──────────────────────────────────────────
-def generate_sketch_render(sketch_png: bytes, prompt: str, negative_prompt: str = "",
-                           strength: float = 5.0) -> str:
-    if not MODEL_LABS_KEY:
-        raise RuntimeError("MODEL_LABS_KEY not configured")
-
-    img = Image.open(BytesIO(sketch_png))
-    w, h = clamp_dims(img.width, img.height)
-
-    return _post_and_poll("sketch_rendering", {
-        "key": MODEL_LABS_KEY,
-        "init_image": _upload_to_modelslab(sketch_png),
-        "prompt": prompt,
-        "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
-        "strength": strength,
-        "guidance_scale": 8,
-        "num_inference_steps": 51,
-        "base64": False,
-        "width": w,
-        "height": h,
-    })
-
-
-# ── Endpoint 8: Exterior Restorer ─────────────────────────────────────────
-def generate_exterior_restore(exterior_png: bytes, prompt: str, negative_prompt: str = "",
-                              strength: float = 5.0) -> str:
-    if not MODEL_LABS_KEY:
-        raise RuntimeError("MODEL_LABS_KEY not configured")
-
-    img = Image.open(BytesIO(exterior_png))
-    w, h = clamp_dims(img.width, img.height)
-
-    return _post_and_poll("exterior_restorer", {
-        "key": MODEL_LABS_KEY,
-        "init_image": _upload_to_modelslab(exterior_png),
-        "prompt": prompt,
-        "negative_prompt": negative_prompt or "bad quality, blurry, distorted",
-        "strength": strength,
-        "guidance_scale": 8,
-        "num_inference_steps": 51,
-        "base64": False,
-        "width": w,
-        "height": h,
-    })
-
-
-# ── OpenAI fallback ────────────────────────────────────────────────────────
-def generate_openai(room_png: bytes, reference_png: bytes | None, prompt: str, room_fname: str) -> str:
-    if not OPENAI_API_KEY or OPENAI_API_KEY.startswith("sk-placeholder"):
-        raise RuntimeError("OPENAI_API_KEY not configured")
-    import openai
-    client = openai.OpenAI(api_key=OPENAI_API_KEY)
-    if reference_png:
-        response = client.images.edit(
-            model="gpt-image-1.5",
-            image=[(room_fname, room_png, "image/png"), ("reference.png", reference_png, "image/png")],
-            prompt=prompt, n=1, size="1024x1024",
-        )
-    else:
-        response = client.images.edit(
-            model="gpt-image-1.5",
-            image=(room_fname, room_png, "image/png"),
-            prompt=prompt, n=1, size="1024x1024",
-        )
-    for img_data in response.data:
-        if hasattr(img_data, "b64_json") and img_data.b64_json:
-            return img_data.b64_json
-        if hasattr(img_data, "url") and img_data.url:
-            import requests as req
-            r = req.get(img_data.url, timeout=30)
-            return base64.b64encode(r.content).decode()
-    raise RuntimeError("No image data returned from OpenAI")

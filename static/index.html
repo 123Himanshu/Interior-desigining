@@ -1288,28 +1288,10 @@ body, html {
           <h2 class="sidebar-title">Create your image</h2>
       </div>
 
-      <!-- Step 0: Mode Selector -->
-      <div class="step-container" id="step0">
-        <div class="step-header">
-          <span class="step-num">01 /</span>
-          <span class="step-label">Choose what to do</span>
-        </div>
-        <div class="tags-row" id="modeTags">
-          <span class="mode-option"><button class="tag active" data-mode="edit" data-requires-obj="true">Add or replace item</button><span class="mode-help">Add a furniture image to your room, or replace an existing item with it.</span></span>
-          <span class="mode-option"><button class="tag" data-mode="make" data-requires-obj="false">Redesign room</button><span class="mode-help">Give the room a new overall style using your written description.</span></span>
-          <span class="mode-option"><button class="tag" data-mode="decorate" data-requires-obj="false">Decorate room</button><span class="mode-help">Add decor and furniture ideas to the room from your prompt.</span></span>
-          <span class="mode-option"><button class="tag" data-mode="floor-plan" data-requires-obj="false">Create floor plan</button><span class="mode-help">Turn the room image into a visual floor-plan layout.</span></span>
-          <span class="mode-option"><button class="tag" data-mode="remove-object" data-requires-obj="false">Remove an item</button><span class="mode-help">Describe the furniture or object you want removed.</span></span>
-          <span class="mode-option"><button class="tag" data-mode="scenario" data-requires-obj="false">Change surroundings</button><span class="mode-help">Change the scene or environment, such as snow, beach, forest, or city.</span></span>
-          <span class="mode-option"><button class="tag" data-mode="sketch" data-requires-obj="false">Turn sketch into photo</button><span class="mode-help">Turn an architectural sketch into a realistic image.</span></span>
-          <span class="mode-option"><button class="tag" data-mode="exterior" data-requires-obj="false">Improve exterior</button><span class="mode-help">Restore or improve the outside of a building.</span></span>
-        </div>
-      </div>
-
       <!-- Step 1: Room image -->
       <div class="step-container" id="step1">
         <div class="step-header">
-          <span class="step-num">02 /</span>
+          <span class="step-num">01 /</span>
            <span class="step-label">Room photo</span>
         </div>
         <div class="drop-zone" id="roomZone">
@@ -1326,9 +1308,9 @@ body, html {
       </div>
 
       <!-- Step 2: Subject assets -->
-      <div class="step-container disabled" id="step2">
+      <div class="step-container" id="step2">
         <div class="step-header">
-          <span class="step-num">03 /</span>
+          <span class="step-num">02 /</span>
          <span class="step-label">Furniture or items (up to 4)</span>
            <span class="step-badge" id="assetBadge"></span>
         </div>
@@ -1360,9 +1342,9 @@ body, html {
       </div>
 
       <!-- Step 3: Prompt -->
-      <div class="step-container disabled" id="step3">
+      <div class="step-container" id="step3">
         <div class="step-header">
-          <span class="step-num">04 /</span>
+          <span class="step-num">03 /</span>
            <span class="step-label">What should change?</span>
         </div>
 
@@ -1465,7 +1447,7 @@ body, html {
       <div class="overlay-loader" id="loader">
         <div class="spinner"></div>
         <div class="loader-title">Synthesizing Scene…</div>
-        <div class="loader-desc">This usually takes 60-120 seconds</div>
+        <div class="loader-desc">This usually takes 5-30 seconds</div>
       </div>
     </main>
 
@@ -1482,13 +1464,6 @@ body, html {
         <select class="history-filter" id="historyModeFilter" aria-label="Filter history by mode">
           <option value="">All changes</option>
           <option value="edit">Add or replace item</option>
-          <option value="make">Redesign room</option>
-          <option value="decorate">Decorate room</option>
-          <option value="floor-plan">Create floor plan</option>
-          <option value="remove-object">Remove an item</option>
-          <option value="scenario">Change surroundings</option>
-          <option value="sketch">Turn sketch into photo</option>
-          <option value="exterior">Improve exterior</option>
         </select>
       </div>
       <div class="history-grid" id="historyGrid"></div>
@@ -1712,7 +1687,6 @@ const LibraryStore = {
 const ORIGINAL_KEY = 'roomai_original_scene';
 
 const S = {
-  designMode:         'edit',
   libSelectedIds:    new Set(),
   editorSelectedIds: new Set(),
   assetMode:         'upload',
@@ -1969,9 +1943,7 @@ document.querySelectorAll('.nav-pill').forEach(b => b.addEventListener('click', 
 
 /* ── Generation History ───────────────────────────────────── */
 const HISTORY_MODE_NAMES = {
-  edit: 'Add or replace item', make: 'Redesign room', decorate: 'Decorate room',
-  'floor-plan': 'Create floor plan', 'remove-object': 'Remove an item',
-  scenario: 'Change surroundings', sketch: 'Turn sketch into photo', exterior: 'Improve exterior',
+  edit: 'Add or replace item',
 };
 let historyCursor = null;
 let historyItems = [];
@@ -2564,20 +2536,6 @@ document.querySelectorAll('#placement-tags .tag').forEach(t => t.addEventListene
   S.userEditedPrompt = false; rebuildPrompt();
 }));
 
-/* ── Mode selector ──────────────────────────────────────── */
-document.querySelectorAll('#modeTags .tag').forEach(t => t.addEventListener('click', () => {
-  document.querySelectorAll('#modeTags .tag').forEach(x => x.classList.remove('active'));
-  t.classList.add('active');
-  S.designMode = t.dataset.mode;
-  const needsObj = t.dataset.requiresObj === 'true';
-  const step2 = $('step2');
-  if (needsObj) {
-    step2.classList.remove('disabled');
-  } else {
-    step2.classList.add('disabled');
-  }
-}));
-
 $('promptInput').addEventListener('input', () => { S.userEditedPrompt = true; });
 
 /* ── Generate ─────────────────────────────────────────────── */
@@ -2602,7 +2560,7 @@ $('generateBtn').addEventListener('click', async () => {
   const elapsedInterval = setInterval(() => {
     const secs = Math.floor((Date.now() - genStart) / 1000);
     const mins = Math.floor(secs / 60);
-    const etaText = secs < 30 ? 'Analyzing scene...' : `Generating... ${mins > 0 ? mins + 'm ' : ''}${secs % 60}s elapsed`;
+    const etaText = secs < 10 ? 'Uploading images...' : `Rendering... ${mins > 0 ? mins + 'm ' : ''}${secs % 60}s elapsed`;
     if (loaderDesc) loaderDesc.textContent = etaText;
   }, 1000);
 
@@ -2612,19 +2570,15 @@ $('generateBtn').addEventListener('click', async () => {
     fd.append('room_image', new File([S.baseBlob], `room.${ext}`, { type: S.baseBlob.type }));
     fd.append('prompt', prompt);
 
-    const needsObj = S.designMode === 'edit';
-    if (needsObj) {
-      const objectTags = assets.map(a => a.objectTag || a.name);
-      fd.append('object_tags', JSON.stringify(objectTags));
-       for (let i = 0; i < Math.min(assets.length, 4); i++) {
-        const a    = assets[i];
-         const blob = a.blob || await imageUrlToBlob(a.dataUrl);
-        fd.append(`object_image_${i+1}`, new File([blob], `obj${i+1}.png`, { type: 'image/png' }));
-      }
+    const objectTags = assets.map(a => a.objectTag || a.name);
+    fd.append('object_tags', JSON.stringify(objectTags));
+    for (let i = 0; i < Math.min(assets.length, 4); i++) {
+      const a    = assets[i];
+      const blob = a.blob || await imageUrlToBlob(a.dataUrl);
+      fd.append(`object_image_${i+1}`, new File([blob], `obj${i+1}.png`, { type: 'image/png' }));
     }
 
-    const endpoint = '/' + S.designMode;
-    const res  = await authFetch(endpoint, { method: 'POST', body: fd });
+    const res  = await authFetch('/edit', { method: 'POST', body: fd });
     const json = await res.json();
     if (!res.ok) throw new Error(json.detail || `Error ${res.status}`);
     if (json.credits !== undefined) {
@@ -2650,7 +2604,7 @@ $('generateBtn').addEventListener('click', async () => {
   } finally {
     clearInterval(elapsedInterval);
     $('loader').classList.remove('visible');
-    if (loaderDesc) loaderDesc.textContent = 'Expected: 60-120s';
+    if (loaderDesc) loaderDesc.textContent = 'Expected: 5-30s';
     btn.disabled = false;
     btn.textContent = 'Generate';
   }
