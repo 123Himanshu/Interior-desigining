@@ -2,6 +2,7 @@
 import sys
 
 from app.config import DATABASE_URL
+from app.migrations import run_migrations
 
 _pool = None
 
@@ -145,6 +146,7 @@ def init_db():
                 id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1)
             )
         """)
+        run_migrations(conn)
         conn.commit()
         print("[DB] PostgreSQL tables ready", file=sys.stderr)
     finally:

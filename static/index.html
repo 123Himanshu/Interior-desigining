@@ -691,6 +691,28 @@ body, html {
 }
 .btn-add-asset:hover { background: var(--primary-deep); }
 
+/* History screen */
+#screen-history { flex-direction: column; overflow: hidden; }
+#history-body { flex: 1; overflow-y: auto; padding: var(--sp-xl) var(--sp-xxl) 120px; max-width: 1280px; margin: 0 auto; width: 100%; }
+.history-topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: var(--sp-xl); flex-wrap: wrap; }
+.history-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 28px; font-weight: 700; color: var(--ink); }
+.history-subtitle { color: var(--mute); font-size: 12px; margin-top: 3px; }
+.history-filter { height: 38px; padding: 0 12px; border: 1px solid var(--hairline-strong); border-radius: var(--rounded-full); background: var(--surface-card); color: var(--ink); }
+.history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
+.history-card { background: var(--surface-card); border: 1px solid var(--hairline); border-radius: var(--rounded-md); overflow: hidden; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.history-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(32,32,32,.1); }
+.history-card-image { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surface-bone); }
+.history-card-info { padding: 12px; }
+.history-card-mode { color: var(--primary); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.history-card-date { color: var(--mute); font-size: 11px; margin-top: 4px; }
+.history-card-prompt { color: var(--body); font-size: 12px; line-height: 1.4; margin-top: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.history-empty { padding: 80px 20px; text-align: center; color: var(--mute); }
+.history-load-more { display: block; margin: 24px auto 0; }
+.history-detail { max-width: 900px; margin: 0 auto; }
+.history-detail-image { width: 100%; max-height: 65vh; object-fit: contain; background: var(--surface-bone); border-radius: var(--rounded-md); }
+.history-detail-meta { margin-top: 16px; padding: 16px; background: var(--surface-card); border: 1px solid var(--hairline); border-radius: var(--rounded-md); }
+.history-detail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
 /* Tag info strip */
 .tag-info-strip {
   background: var(--surface-card);
@@ -1245,6 +1267,7 @@ body, html {
     <div class="brand-mark">Room AI</div>
     <div class="header-nav">
       <button class="nav-pill active" data-screen="editor">Editor</button>
+      <button class="nav-pill" data-screen="history">History</button>
       <button class="nav-pill" data-screen="library">Library</button>
     </div>
     <div class="credit-badge" id="creditBadge">
@@ -1448,6 +1471,33 @@ body, html {
 
   </div><!-- /screen-editor -->
 
+  <!-- ══ HISTORY SCREEN ══ -->
+  <div id="screen-history" class="screen">
+    <div id="history-body">
+      <div class="history-topbar">
+        <div>
+          <div class="history-title">Your history</div>
+          <div class="history-subtitle">Your generated images stay here until you delete them.</div>
+        </div>
+        <select class="history-filter" id="historyModeFilter" aria-label="Filter history by mode">
+          <option value="">All changes</option>
+          <option value="edit">Add or replace item</option>
+          <option value="make">Redesign room</option>
+          <option value="decorate">Decorate room</option>
+          <option value="floor-plan">Create floor plan</option>
+          <option value="remove-object">Remove an item</option>
+          <option value="scenario">Change surroundings</option>
+          <option value="sketch">Turn sketch into photo</option>
+          <option value="exterior">Improve exterior</option>
+        </select>
+      </div>
+      <div class="history-grid" id="historyGrid"></div>
+      <div class="history-empty" id="historyEmpty" style="display:none">No generated images yet. Your next result will appear here.</div>
+      <button class="btn-secondary history-load-more" id="historyLoadMore" style="display:none">Load more</button>
+      <div class="history-detail" id="historyDetail" style="display:none"></div>
+    </div>
+  </div><!-- /screen-history -->
+
   <!-- ══ LIBRARY SCREEN ══ -->
   <div id="screen-library" class="screen">
     <div id="library-body">
@@ -1565,7 +1615,8 @@ const LibraryStore = {
   PRESET_ROOM: ['Living Room','Bedroom','Kitchen','Bathroom','Dining Room','Office','Kids Room'],
   PRESET_OBJ:  ['Sofa','Chair','Bed frame','Table','Lamp','Curtain','Rug','Mirror','Plant','Decor','Storage'],
 
-  hfEnabled: false,   // set after /health check
+  hfEnabled: false,
+  storageEnabled: false,
   _syncing:  false,
 
   _read(k)    { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } },
@@ -1580,41 +1631,34 @@ const LibraryStore = {
     this._writeLocal(this.ASSETS_KEY, arr);
   },
 
-  // Push full asset list to HF (debounced — max 1 request per 2s)
-  _pushTimer: null,
-  _pushToHF() {
-    if (!this.hfEnabled) return;
-    clearTimeout(this._pushTimer);
-    this._pushTimer = setTimeout(async () => {
-      if (this._syncing) return;
-      this._syncing = true;
-      setSyncStatus('saving');
-      try {
-        const res = await authFetch('/library', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assets: this.getAssets() }),
-        });
-        if (!res.ok) throw new Error('save failed');
-        setSyncStatus('saved');
-      } catch {
-        setSyncStatus('error');
-      } finally {
-        this._syncing = false;
-      }
-    }, 1500);
-  },
-
-  saveAsset(a) {
-    const arr = this.getAssets();
-    arr.push(a);
+  async saveAsset(a) {
+    if (!this.storageEnabled) throw new Error('Image storage is not available. Please try again later.');
+    const blob = dataUrlToBlob(a.dataUrl);
+    const form = new FormData();
+    form.append('image', new File([blob], 'library-image.png', { type: blob.type || 'image/png' }));
+    form.append('name', a.name);
+    form.append('room_tag', a.roomTag || 'Untagged');
+    form.append('object_tag', a.objectTag || 'Item');
+    setSyncStatus('saving');
+    const response = await authFetch('/library/upload', { method: 'POST', body: form });
+    if (!response.ok) {
+      setSyncStatus('error');
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Could not save image');
+    }
+    const saved = await response.json();
+    const arr = this.getAssets().filter(item => item.id !== saved.id);
+    arr.push({ ...a, ...saved, createdAt: Date.now() });
     this._setAssets(arr);
-    this._pushToHF();
+    setSyncStatus('saved');
   },
 
-  deleteAsset(id) {
+  async deleteAsset(id) {
     this._setAssets(this.getAssets().filter(a => a.id !== id));
-    this._pushToHF();
+    if (this.storageEnabled) {
+      const response = await authFetch(`/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Could not delete image');
+    }
   },
 
   getCustomRoomTags(){ return this._read(this.RTAGS_KEY); },
@@ -1627,9 +1671,9 @@ const LibraryStore = {
   groupByRoom(q=''){
     const lq = q.toLowerCase();
     const assets = this.getAssets().filter(a =>
-      !lq || a.name.toLowerCase().includes(lq) ||
-             a.roomTag.toLowerCase().includes(lq) ||
-             a.objectTag.toLowerCase().includes(lq)
+       !lq || (a.name || '').toLowerCase().includes(lq) ||
+              (a.roomTag || '').toLowerCase().includes(lq) ||
+              (a.objectTag || '').toLowerCase().includes(lq)
     );
     const map = new Map();
     for (const a of assets) {
@@ -1647,14 +1691,15 @@ const LibraryStore = {
       const res = await authFetch('/library');
       const json = await res.json();
       this.hfEnabled = json.enabled;
+      this.storageEnabled = json.storage_enabled === true;
       if (!json.enabled) { setSyncStatus('local'); return; }
 
       const remoteIds  = new Set(json.assets.map(a => a.id));
-      const localOnly  = this.getAssets().filter(a => !remoteIds.has(a.id));
-      const merged     = [...json.assets, ...localOnly];
+       const localOnly  = this.getAssets().filter(a => !remoteIds.has(a.id));
+       const merged     = this.storageEnabled ? json.assets : [...json.assets, ...localOnly];
       this._setAssets(merged);
 
-      if (localOnly.length > 0) this._pushToHF();
+       if (!this.storageEnabled && localOnly.length > 0) setSyncStatus('local');
 
       setSyncStatus('synced');
     } catch {
@@ -1727,6 +1772,13 @@ function dataUrlToBlob(url) {
   const arr  = new Uint8Array(bin.length);
   for (let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
   return new Blob([arr],{type:mime});
+}
+
+async function imageUrlToBlob(url) {
+  if (url.startsWith('data:')) return dataUrlToBlob(url);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Could not load image');
+  return response.blob();
 }
 
 function readFile(file) {
@@ -1891,7 +1943,7 @@ async function handleAuthSubmit() {
       localStorage.removeItem('roomai_custom_room_tags');
       localStorage.removeItem('roomai_custom_obj_tags');
     } catch {}
-    LibraryStore.initFromHF().then(() => { renderLibrary(); renderEditorLibraryGrid(); });
+     LibraryStore.initFromHF().then(() => { renderLibrary(); renderEditorLibraryGrid(); });
   } catch (err) {
     showAuthError(err.message);
   } finally {
@@ -1911,8 +1963,93 @@ function switchScreen(name) {
   $(`screen-${name}`).classList.add('active');
   document.querySelectorAll('.nav-pill').forEach(p => p.classList.toggle('active', p.dataset.screen === name));
   if (name === 'library') renderLibrary();
+  if (name === 'history') loadHistory(true);
 }
 document.querySelectorAll('.nav-pill').forEach(b => b.addEventListener('click', () => switchScreen(b.dataset.screen)));
+
+/* ── Generation History ───────────────────────────────────── */
+const HISTORY_MODE_NAMES = {
+  edit: 'Add or replace item', make: 'Redesign room', decorate: 'Decorate room',
+  'floor-plan': 'Create floor plan', 'remove-object': 'Remove an item',
+  scenario: 'Change surroundings', sketch: 'Turn sketch into photo', exterior: 'Improve exterior',
+};
+let historyCursor = null;
+let historyItems = [];
+
+function resetHistoryDetail() {
+  $('historyDetail').style.display = 'none';
+  $('historyGrid').style.display = '';
+}
+
+function renderHistory(items, append = false) {
+  const grid = $('historyGrid');
+  if (!append) grid.innerHTML = '';
+  if (!items.length && !append) {
+    grid.style.display = 'none';
+    $('historyEmpty').style.display = '';
+  } else {
+    grid.style.display = '';
+    $('historyEmpty').style.display = 'none';
+  }
+  items.forEach(item => {
+    const card = document.createElement('article');
+    card.className = 'history-card';
+    card.innerHTML = `<img class="history-card-image" src="${item.output_url}" alt="Generated ${escHtml(HISTORY_MODE_NAMES[item.mode] || item.mode)}" loading="lazy" />
+      <div class="history-card-info"><div class="history-card-mode">${escHtml(HISTORY_MODE_NAMES[item.mode] || item.mode)}</div>
+      <div class="history-card-date">${new Date(item.created_at).toLocaleString()}</div>
+      <div class="history-card-prompt">${escHtml(item.prompt)}</div></div>`;
+    card.addEventListener('click', () => showHistoryDetail(item));
+    grid.appendChild(card);
+  });
+  $('historyLoadMore').style.display = historyCursor ? '' : 'none';
+}
+
+function showHistoryDetail(item) {
+  $('historyGrid').style.display = 'none';
+  $('historyEmpty').style.display = 'none';
+  const detail = $('historyDetail');
+  detail.style.display = '';
+  detail.innerHTML = `<button class="btn-secondary" id="historyBack">Back to history</button>
+    <img class="history-detail-image" src="${item.output_url}" alt="Generated result" />
+    <div class="history-detail-meta"><strong>${escHtml(HISTORY_MODE_NAMES[item.mode] || item.mode)}</strong>
+      <div class="history-card-date">${new Date(item.created_at).toLocaleString()}</div>
+      <p>${escHtml(item.prompt)}</p>
+      <div class="history-detail-actions"><a class="btn-ghost btn-export" href="${item.output_url}" download="roomai-${item.id}.${item.format}">Download</a>
+      <button class="btn-ghost" id="historyUse">Use in Editor</button><button class="btn-ghost" id="historyDelete">Delete</button></div></div>`;
+  $('historyBack').addEventListener('click', resetHistoryDetail);
+  $('historyUse').addEventListener('click', async () => {
+    const response = await fetch(item.output_url);
+    const blob = await response.blob();
+    setBase(blob, item.output_url);
+    switchScreen('editor');
+    showToast('Image loaded into the editor.');
+  });
+  $('historyDelete').addEventListener('click', async () => {
+    if (!confirm('Delete this generated image permanently?')) return;
+    const response = await authFetch(`/generations/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+    if (!response.ok) return showToast('Could not delete this image.');
+    historyItems = historyItems.filter(x => x.id !== item.id);
+    resetHistoryDetail();
+    renderHistory(historyItems);
+    showToast('Image deleted.');
+  });
+}
+
+async function loadHistory(reset = false) {
+  if (reset) { historyCursor = null; historyItems = []; resetHistoryDetail(); }
+  const mode = $('historyModeFilter').value;
+  const params = new URLSearchParams({ limit: '24' });
+  if (mode) params.set('mode', mode);
+  if (historyCursor) params.set('cursor', historyCursor);
+  const response = await authFetch(`/generations?${params}`);
+  if (!response.ok) return;
+  const data = await response.json();
+  historyCursor = data.next_cursor;
+  historyItems = reset ? data.items : [...historyItems, ...data.items];
+  renderHistory(data.items, !reset);
+}
+$('historyLoadMore').addEventListener('click', () => loadHistory(false));
+$('historyModeFilter').addEventListener('change', () => loadHistory(true));
 
 /* ── Tag Modal ────────────────────────────────────────────── */
 let _pendingDataUrl = null;
@@ -1946,11 +2083,14 @@ function saveModal() {
   if (!_pendingDataUrl) return;
   if ($('modalRoomCustom').value.trim()) LibraryStore.addCustomRoomTag(roomTag);
   if ($('modalObjCustom').value.trim())  LibraryStore.addCustomObjTag(objTag);
-  LibraryStore.saveAsset({ id: uid(), name, dataUrl: _pendingDataUrl, roomTag, objectTag: objTag, createdAt: Date.now() });
-  closeTagModal();
-  renderLibrary();
-  renderEditorLibraryGrid();
-  showToast(`"${name}" saved to Library.`);
+   LibraryStore.saveAsset({ id: uid(), name, dataUrl: _pendingDataUrl, roomTag, objectTag: objTag, createdAt: Date.now() })
+     .then(() => {
+       closeTagModal();
+       renderLibrary();
+       renderEditorLibraryGrid();
+       showToast(`"${name}" saved to Library.`);
+     })
+     .catch(err => showToast(err.message || 'Could not save image.'));
 }
 
 $('modalClose').addEventListener('click', closeTagModal);
@@ -2004,10 +2144,11 @@ function renderLibrary() {
       card.addEventListener('click', e => {
         if (e.target.classList.contains('lib-del-btn')) {
           if (confirm(`Delete "${card.dataset.name}"?`)) {
-            LibraryStore.deleteAsset(card.dataset.id);
-            S.libSelectedIds.delete(card.dataset.id);
-            S.editorSelectedIds.delete(card.dataset.id);
-            renderLibrary(); renderEditorLibraryGrid(); updateFloatBar(); updateChips();
+             LibraryStore.deleteAsset(card.dataset.id).then(() => {
+               S.libSelectedIds.delete(card.dataset.id);
+               S.editorSelectedIds.delete(card.dataset.id);
+               renderLibrary(); renderEditorLibraryGrid(); updateFloatBar(); updateChips();
+             }).catch(err => showToast(err.message));
           }
           return;
         }
@@ -2158,9 +2299,9 @@ $('btnViewAsset').addEventListener('click', () => {
   $('canvasMainImg').style.display = 'none'; $('canvasAssetImg').style.display = '';
 });
 
-$('refineBtn').addEventListener('click', () => {
+$('refineBtn').addEventListener('click', async () => {
   const url = $('afterImg').src;
-  setBase(dataUrlToBlob(url), url);
+  setBase(await imageUrlToBlob(url), url);
   setObj(null,null);
   S.editorSelectedIds.clear();
   S.assetConfigs.clear();
@@ -2477,7 +2618,7 @@ $('generateBtn').addEventListener('click', async () => {
       fd.append('object_tags', JSON.stringify(objectTags));
        for (let i = 0; i < Math.min(assets.length, 4); i++) {
         const a    = assets[i];
-         const blob = a.blob || dataUrlToBlob(a.dataUrl);
+         const blob = a.blob || await imageUrlToBlob(a.dataUrl);
         fd.append(`object_image_${i+1}`, new File([blob], `obj${i+1}.png`, { type: 'image/png' }));
       }
     }
@@ -2492,7 +2633,7 @@ $('generateBtn').addEventListener('click', async () => {
     }
 
     const b64      = json.images_b64?.length ? json.images_b64[0] : json.image_b64;
-    const finalUrl = `data:image/${json.format};base64,${b64}`;
+    const finalUrl = json.output_url || `data:image/${json.format};base64,${b64}`;
 
     $('beforeImg').src    = S.baseURL;
     $('afterImg').src     = finalUrl;
@@ -2500,6 +2641,9 @@ $('generateBtn').addEventListener('click', async () => {
     $('resultView').classList.add('visible');
     updateOriginalBtn();
     showToast('Render complete', 3000);
+    if (document.querySelector('.nav-pill[data-screen="history"]') && historyItems) {
+      historyItems = [];
+    }
   } catch (err) {
     showToast(err.message || 'Generation failed', 5000);
     syncCanvas();
@@ -2594,7 +2738,7 @@ async function appInit() {
       return;
     }
     hideAuthOverlay();
-    LibraryStore.initFromHF().then(() => {
+     LibraryStore.initFromHF().then(() => {
       renderLibrary();
       renderEditorLibraryGrid();
     });

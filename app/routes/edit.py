@@ -20,6 +20,8 @@ from app.services.generation import (
     generate_exterior_restore, SCENARIOS,
 )
 from app.services.backup import schedule_backup
+from app.services.generations import save_generation
+from app.services.storage import StorageError
 from app.config import USE_MODEL_LABS
 
 router = APIRouter()
@@ -28,6 +30,24 @@ UPLOADS_DIR = Path("uploads")
 UPLOADS_DIR.mkdir(exist_ok=True)
 
 MAX_PROMPT_LENGTH = 4000
+
+
+def _generation_response(user_id: int, mode: str, prompt: str, tags: list, image_b64: str, credits: int) -> JSONResponse:
+    try:
+        saved = save_generation(user_id, mode, prompt, tags, image_b64)
+    except Exception as exc:
+        try:
+            refund_credit(user_id)
+        except Exception:
+            pass
+        raise HTTPException(status_code=503, detail="Could not save generated image. Credit refunded. Try again.") from exc
+    return JSONResponse({
+        "generation_id": saved["id"],
+        "output_url": saved["output_url"],
+        "format": saved["format"],
+        "credits": credits,
+        "history_saved": True,
+    })
 
 
 def build_composite(pil_images: list, tags: list) -> bytes:
@@ -181,12 +201,7 @@ async def edit_room(
 
     schedule_backup()
 
-    return JSONResponse({
-        "image_b64": result_b64,
-        "images_b64": [result_b64],
-        "format": "png",
-        "credits": credits,
-    })
+    return _generation_response(user["id"], "edit", prompt, tags[:len(pil_objects)], result_b64, credits)
 
 
 # ── Interior Make (Room Redesign) ──────────────────────────────────────────
@@ -239,7 +254,7 @@ async def make_interior(
                 pass
 
     schedule_backup()
-    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+    return _generation_response(user["id"], "make", prompt, [], result_b64, credits)
 
 
 # ── Room Decorator ─────────────────────────────────────────────────────────
@@ -292,7 +307,7 @@ async def decorate_room(
                 pass
 
     schedule_backup()
-    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+    return _generation_response(user["id"], "decorate", prompt, [], result_b64, credits)
 
 
 # ── Floor Planning ─────────────────────────────────────────────────────────
@@ -343,7 +358,7 @@ async def floor_plan(
                 pass
 
     schedule_backup()
-    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+    return _generation_response(user["id"], "floor-plan", prompt, [], result_b64, credits)
 
 
 # ── Object Removal ─────────────────────────────────────────────────────────
@@ -392,7 +407,7 @@ async def remove_object(
                 pass
 
     schedule_backup()
-    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+    return _generation_response(user["id"], "remove-object", object_name, [object_name], result_b64, credits)
 
 
 # ── Scenario Changer ──────────────────────────────────────────────────────
@@ -446,7 +461,7 @@ async def change_scenario(
                 pass
 
     schedule_backup()
-    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+    return _generation_response(user["id"], "scenario", prompt, [scenario], result_b64, credits)
 
 
 # ── Sketch Rendering ──────────────────────────────────────────────────────
@@ -497,7 +512,7 @@ async def render_sketch(
                 pass
 
     schedule_backup()
-    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+    return _generation_response(user["id"], "sketch", prompt, [], result_b64, credits)
 
 
 # ── Exterior Restorer ─────────────────────────────────────────────────────
@@ -548,4 +563,4 @@ async def restore_exterior(
                 pass
 
     schedule_backup()
-    return JSONResponse({"image_b64": result_b64, "images_b64": [result_b64], "format": "png", "credits": credits})
+    return _generation_response(user["id"], "exterior", prompt, [], result_b64, credits)

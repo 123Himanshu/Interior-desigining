@@ -9,6 +9,13 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 SEED_USERNAME = os.getenv("SEED_USERNAME", "neiv")
 HF_TOKEN = os.getenv("HF_TOKEN", "")
 HF_DATASET_REPO = os.getenv("HF_DATASET_REPO", "")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "roomai-media").strip()
+try:
+    STORAGE_SIGNED_URL_TTL = max(60, int(os.getenv("STORAGE_SIGNED_URL_TTL", "3600")))
+except ValueError:
+    STORAGE_SIGNED_URL_TTL = 3600
 
 USE_MODEL_LABS = True
 

@@ -20,9 +20,18 @@ def _backup_to_hf():
                 "SELECT id, username, password_hash, salt, credits, is_admin, created_at FROM users"
             ).fetchall()
             library = conn.execute(
-                "SELECT id, user_id, name, room_tag, obj_tag, image_b64, created_at FROM library_items"
+                """SELECT id, user_id, name, room_tag, obj_tag, image_path,
+                          image_mime, image_size_bytes, image_sha256,
+                          CASE WHEN image_path IS NULL THEN image_b64 ELSE NULL END AS legacy_image_b64,
+                          created_at
+                   FROM library_items"""
             ).fetchall()
             seeded = conn.execute("SELECT id FROM library_seeded").fetchall()
+            generations = conn.execute(
+                """SELECT id, user_id, mode, prompt, object_tags, output_path,
+                          output_mime, output_size_bytes, output_sha256, created_at
+                   FROM generations"""
+            ).fetchall()
         finally:
             conn.close()
 
@@ -40,6 +49,7 @@ def _backup_to_hf():
             "users": _ser(users),
             "library_items": _ser(library),
             "library_seeded": _ser(seeded),
+            "generations": _ser(generations),
         }
         content = _json.dumps(data, ensure_ascii=False).encode("utf-8")
         from huggingface_hub import HfApi
